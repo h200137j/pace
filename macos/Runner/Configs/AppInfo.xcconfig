@@ -8,7 +8,7 @@
 PRODUCT_NAME = pace
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.ladsafrica.pace
+PRODUCT_BUNDLE_IDENTIFIER = com.h200137j.pace
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.ladsafrica. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.h200137j. All rights reserved.

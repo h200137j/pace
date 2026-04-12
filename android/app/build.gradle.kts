@@ -8,8 +8,8 @@ plugins {
 }
 
 android {
-    namespace = "com.ladsafrica.pace"
-    compileSdk = 34
+    namespace = "com.h200137j.pace"
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     val keystorePropertiesFile = rootProject.projectDir.resolve("key.properties")
@@ -41,7 +41,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.ladsafrica.pace"
+        applicationId = "com.h200137j.pace"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
