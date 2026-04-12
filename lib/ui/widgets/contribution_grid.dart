@@ -34,60 +34,65 @@ class ContributionGrid extends StatelessWidget {
       if (d.day == 1) months[i] = d.month;
     }
 
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Month labels
-        SizedBox(
-          height: 16,
-          child: Row(
-            children: List.generate(
-              (cells.length / 7).ceil(),
-              (col) {
-                final cellIdx = col * 7;
-                final month = months[cellIdx];
-                return SizedBox(
-                  width: 14,
-                  child: month != null
-                      ? Text(
-                          PaceDateUtils.shortMonth(month),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontSize: 8,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                );
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        // Weekday labels (Left fixed column)
+        Column(
           children: [
-            // Weekday labels
-            Column(
-              children: ['M', '', 'W', '', 'F', '', 'S'].map((label) {
-                return SizedBox(
-                  width: 12,
-                  height: 14,
-                  child: Text(
-                    label,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontSize: 8,
-                      color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 16), // space for month labels
+            const SizedBox(height: 4),  // space for spacing
+            ...['M', '', 'W', '', 'F', '', 'S'].map((label) {
+              return SizedBox(
+                width: 14,
+                height: 14,
+                child: Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontSize: 8,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+        const SizedBox(width: 4),
+        // Scrollable area
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Month labels
+                SizedBox(
+                  height: 16,
+                  child: Row(
+                    children: List.generate(
+                      (cells.length / 7).ceil(),
+                      (col) {
+                        final cellIdx = col * 7;
+                        final month = months[cellIdx];
+                        return SizedBox(
+                          width: 14,
+                          child: month != null
+                              ? Text(
+                                  PaceDateUtils.shortMonth(month),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontSize: 8,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        );
+                      },
                     ),
                   ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(width: 2),
-            // Grid
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
+                ),
+                const SizedBox(height: 4),
+                // Grid cells
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: List.generate(
                     (cells.length / 7).ceil(),
@@ -95,7 +100,7 @@ class ContributionGrid extends StatelessWidget {
                       children: List.generate(7, (row) {
                         final idx = col * 7 + row;
                         if (idx >= cells.length) {
-                          return const SizedBox(width: 12, height: 14);
+                          return const SizedBox(width: 14, height: 14);
                         }
                         final date = cells[idx];
                         final key = PaceDateUtils.toDateKey(date);
@@ -119,7 +124,7 @@ class ContributionGrid extends StatelessWidget {
                                   ? Colors.transparent
                                   : done
                                       ? color
-                                      : color.withOpacity(0.1),
+                                      : color.withValues(alpha: 0.1),
                             ),
                           ),
                         );
@@ -127,9 +132,9 @@ class ContributionGrid extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ],
     );
