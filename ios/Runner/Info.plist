@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Pace needs camera access to capture daily challenge photos for your progress montage.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Pace needs library access to allow you to upload challenge photos for your progress montage.</string>
 </dict>
 </plist>

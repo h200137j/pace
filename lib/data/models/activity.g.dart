@@ -47,13 +47,18 @@ const ActivitySchema = CollectionSchema(
       name: r'name',
       type: IsarType.string,
     ),
-    r'targetDaysMask': PropertySchema(
+    r'requiresPhoto': PropertySchema(
       id: 6,
+      name: r'requiresPhoto',
+      type: IsarType.bool,
+    ),
+    r'targetDaysMask': PropertySchema(
+      id: 7,
       name: r'targetDaysMask',
       type: IsarType.long,
     ),
     r'type': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'type',
       type: IsarType.string,
       enumMap: _ActivitytypeEnumValueMap,
@@ -110,8 +115,9 @@ void _activitySerialize(
   writer.writeLong(offsets[3], object.iconCodePoint);
   writer.writeBool(offsets[4], object.isArchived);
   writer.writeString(offsets[5], object.name);
-  writer.writeLong(offsets[6], object.targetDaysMask);
-  writer.writeString(offsets[7], object.type.name);
+  writer.writeBool(offsets[6], object.requiresPhoto);
+  writer.writeLong(offsets[7], object.targetDaysMask);
+  writer.writeString(offsets[8], object.type.name);
 }
 
 Activity _activityDeserialize(
@@ -127,9 +133,10 @@ Activity _activityDeserialize(
   object.iconCodePoint = reader.readLong(offsets[3]);
   object.id = id;
   object.name = reader.readString(offsets[5]);
-  object.targetDaysMask = reader.readLong(offsets[6]);
+  object.requiresPhoto = reader.readBool(offsets[6]);
+  object.targetDaysMask = reader.readLong(offsets[7]);
   object.type =
-      _ActivitytypeValueEnumMap[reader.readStringOrNull(offsets[7])] ??
+      _ActivitytypeValueEnumMap[reader.readStringOrNull(offsets[8])] ??
           ActivityType.challenge;
   return object;
 }
@@ -154,8 +161,10 @@ P _activityDeserializeProp<P>(
     case 5:
       return (reader.readString(offset)) as P;
     case 6:
-      return (reader.readLong(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 7:
+      return (reader.readLong(offset)) as P;
+    case 8:
       return (_ActivitytypeValueEnumMap[reader.readStringOrNull(offset)] ??
           ActivityType.challenge) as P;
     default:
@@ -729,6 +738,16 @@ extension ActivityQueryFilter
     });
   }
 
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> requiresPhotoEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'requiresPhoto',
+        value: value,
+      ));
+    });
+  }
+
   QueryBuilder<Activity, Activity, QAfterFilterCondition> targetDaysMaskEqualTo(
       int value) {
     return QueryBuilder.apply(this, (query) {
@@ -994,6 +1013,18 @@ extension ActivityQuerySortBy on QueryBuilder<Activity, Activity, QSortBy> {
     });
   }
 
+  QueryBuilder<Activity, Activity, QAfterSortBy> sortByRequiresPhoto() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'requiresPhoto', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> sortByRequiresPhotoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'requiresPhoto', Sort.desc);
+    });
+  }
+
   QueryBuilder<Activity, Activity, QAfterSortBy> sortByTargetDaysMask() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'targetDaysMask', Sort.asc);
@@ -1105,6 +1136,18 @@ extension ActivityQuerySortThenBy
     });
   }
 
+  QueryBuilder<Activity, Activity, QAfterSortBy> thenByRequiresPhoto() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'requiresPhoto', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> thenByRequiresPhotoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'requiresPhoto', Sort.desc);
+    });
+  }
+
   QueryBuilder<Activity, Activity, QAfterSortBy> thenByTargetDaysMask() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'targetDaysMask', Sort.asc);
@@ -1169,6 +1212,12 @@ extension ActivityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Activity, Activity, QDistinct> distinctByRequiresPhoto() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'requiresPhoto');
+    });
+  }
+
   QueryBuilder<Activity, Activity, QDistinct> distinctByTargetDaysMask() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'targetDaysMask');
@@ -1224,6 +1273,12 @@ extension ActivityQueryProperty
   QueryBuilder<Activity, String, QQueryOperations> nameProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'name');
+    });
+  }
+
+  QueryBuilder<Activity, bool, QQueryOperations> requiresPhotoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'requiresPhoto');
     });
   }
 

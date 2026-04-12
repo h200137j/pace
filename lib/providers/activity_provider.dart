@@ -34,6 +34,7 @@ class ActivityNotifier extends StateNotifier<AsyncValue<void>> {
     required Color color,
     required int iconCodePoint,
     int targetDaysMask = 127,
+    bool requiresPhoto = false,
   }) async {
     state = const AsyncValue.loading();
     try {
@@ -43,6 +44,7 @@ class ActivityNotifier extends StateNotifier<AsyncValue<void>> {
         colorValue: color.value,
         iconCodePoint: iconCodePoint,
         targetDaysMask: targetDaysMask,
+        requiresPhoto: requiresPhoto,
       );
       state = const AsyncValue.data(null);
       return act;

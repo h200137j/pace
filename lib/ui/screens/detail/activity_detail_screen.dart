@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import '../../../data/models/activity.dart';
 import '../../../providers/activity_provider.dart';
 import '../../../providers/analytics_provider.dart';
 import '../../../providers/completion_provider.dart';
+import '../../../core/services/photo_service.dart';
 import '../../widgets/contribution_grid.dart';
 import '../create/create_activity_sheet.dart';
 
@@ -145,6 +147,18 @@ class _DetailBody extends ConsumerWidget {
             ),
           ),
 
+          // ── Montage & Check-in ──────────────────────────────────────────
+          if (activity.requiresPhoto)
+            _PhotoCheckIn(activity: activity),
+
+          if (activity.requiresPhoto)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: _MontageCard(activity: activity),
+              ),
+            ),
+
           // ── Contribution Grid ───────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
@@ -214,9 +228,8 @@ class _DetailBody extends ConsumerWidget {
                       ),
                       const SizedBox(height: 12),
                       _MonthCalendar(
-                        activityId: activity.id,
+                        activity: activity,
                         color: color,
-                        dateKeys: dateKeys,
                         month: monthDate,
                       ),
                     ],
@@ -261,6 +274,127 @@ class _DetailBody extends ConsumerWidget {
 
 // ── Sub-widgets ────────────────────────────────────────────────────────────
 
+class _PhotoCheckIn extends ConsumerWidget {
+  const _PhotoCheckIn({required this.activity});
+  final Activity activity;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final today = PaceDateUtils.todayKey();
+    
+    // Check if we already have a completion with a photo
+    final completionsMap = ref.watch(completionMapProvider(activity.id));
+    final todayCompletion = completionsMap[today];
+    final isDoneToday = todayCompletion != null;
+    
+    final color = Color(activity.colorValue);
+
+    if (isDoneToday) return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
+            ),
+            border: Border.all(color: color.withOpacity(0.3)),
+          ),
+          child: Column(
+            children: [
+              Icon(Icons.camera_alt_rounded, size: 32, color: color),
+              const SizedBox(height: 12),
+              Text(
+                'Today\'s Challenge',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Upload a photo to complete for today',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _triggerPicker(context, ref),
+                  icon: const Icon(Icons.add_a_photo_rounded),
+                  label: const Text('Capture Progress'),
+                  style: FilledButton.styleFrom(backgroundColor: color),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _triggerPicker(BuildContext context, WidgetRef ref) async {
+    final notifier = ref.read(completionNotifierProvider.notifier);
+    final dateKey = PaceDateUtils.todayKey();
+
+    final source = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PhotoSourceSheet(color: Color(activity.colorValue)),
+    );
+
+    if (source == null) return;
+
+    final file = await PhotoService.instance.pickImage(fromCamera: source);
+    if (file == null) return;
+
+    final savedPath = await PhotoService.instance.saveImageToAppStorage(
+      file,
+      dateKey,
+      activity.id,
+    );
+
+    await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+  }
+}
+
+class _PhotoSourceSheet extends StatelessWidget {
+  const _PhotoSourceSheet({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Text('Choose Photo Source', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          ListTile(
+            leading: Icon(Icons.camera_alt_rounded, color: color),
+            title: const Text('Take Photo'),
+            onTap: () => Navigator.pop(context, true),
+          ),
+          ListTile(
+            leading: Icon(Icons.photo_library_rounded, color: color),
+            title: const Text('Choose from Gallery'),
+            onTap: () => Navigator.pop(context, false),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.label,
@@ -301,6 +435,64 @@ class _StatCard extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MontageCard extends StatelessWidget {
+  const _MontageCard({required this.activity});
+  final Activity activity;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = Color(activity.colorValue);
+
+    return InkWell(
+      onTap: () => context.push('/activity/${activity.id}/montage'),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: color.withValues(alpha: 0.1),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.movie_creation_rounded, color: color),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Visual Montage',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    'View your progress through photos',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                color: color.withValues(alpha: 0.5)),
           ],
         ),
       ),
@@ -396,15 +588,13 @@ class _LineChart30Days extends ConsumerWidget {
 
 class _MonthCalendar extends ConsumerWidget {
   const _MonthCalendar({
-    required this.activityId,
+    required this.activity,
     required this.color,
-    required this.dateKeys,
     required this.month,
   });
 
-  final int activityId;
+  final Activity activity;
   final Color color;
-  final Set<String> dateKeys;
   final DateTime month;
 
   @override
@@ -414,6 +604,8 @@ class _MonthCalendar extends ConsumerWidget {
     final daysInMonth = PaceDateUtils.daysInMonth(month);
     final startOffset = firstDay.weekday - 1; // Mon = 0
     final today = PaceDateUtils.toDateOnly(DateTime.now());
+
+    final completionsMap = ref.watch(completionMapProvider(activity.id));
 
     return GridView.builder(
       shrinkWrap: true,
@@ -430,26 +622,47 @@ class _MonthCalendar extends ConsumerWidget {
         final day = i - startOffset + 1;
         final date = DateTime.utc(month.year, month.month, day);
         final key = PaceDateUtils.toDateKey(date);
-        final done = dateKeys.contains(key);
+        
+        final completion = completionsMap[key];
+        final done = completion != null;
+        final hasPhoto = completion?.photoPath != null;
         final isToday = date == today;
 
         return InkWell(
-          onTap: () {
+          onTap: () async {
             if (date.isAfter(today)) return; // Can't mark future
-            ref.read(completionNotifierProvider.notifier).toggle(activityId, key);
+            
+            final notifier = ref.read(completionNotifierProvider.notifier);
+            
+            if (!done) {
+               if (activity.requiresPhoto) {
+                 // Trigger photo picker for strict requirement
+                 await _triggerPicker(ctx, ref, date);
+               } else {
+                 await notifier.toggle(activity.id, key);
+               }
+            } else {
+               await notifier.toggle(activity.id, key);
+            }
           },
           borderRadius: BorderRadius.circular(100),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: done
+              color: done && !hasPhoto
                   ? color
-                  : isToday
+                  : isToday && !done
                       ? color.withValues(alpha: 0.15)
                       : Colors.transparent,
               border: isToday && !done
                   ? Border.all(color: color, width: 1.5)
+                  : null,
+              image: hasPhoto
+                  ? DecorationImage(
+                      image: FileImage(File(completion!.photoPath!)),
+                      fit: BoxFit.cover,
+                    )
                   : null,
             ),
             child: Center(
@@ -457,12 +670,17 @@ class _MonthCalendar extends ConsumerWidget {
                 '$day',
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontWeight: done || isToday ? FontWeight.w700 : FontWeight.w400,
-                  color: done
+                  color: (done && !hasPhoto)
                       ? Colors.white
                       : isToday
                           ? color
-                          : theme.colorScheme.onSurfaceVariant,
+                          : hasPhoto 
+                             ? Colors.white // White text on photo thumbnail
+                             : theme.colorScheme.onSurfaceVariant,
                   fontSize: 11,
+                  shadows: hasPhoto ? [
+                    const Shadow(offset: Offset(0, 1), blurRadius: 2, color: Colors.black54)
+                  ] : null,
                 ),
               ),
             ),
@@ -470,5 +688,29 @@ class _MonthCalendar extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _triggerPicker(BuildContext context, WidgetRef ref, DateTime date) async {
+    final notifier = ref.read(completionNotifierProvider.notifier);
+    final dateKey = PaceDateUtils.toDateKey(date);
+
+    final source = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PhotoSourceSheet(color: Color(activity.colorValue)),
+    );
+
+    if (source == null) return;
+
+    final file = await PhotoService.instance.pickImage(fromCamera: source);
+    if (file == null) return;
+
+    final savedPath = await PhotoService.instance.saveImageToAppStorage(
+      file,
+      dateKey,
+      activity.id,
+    );
+
+    await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
   }
 }

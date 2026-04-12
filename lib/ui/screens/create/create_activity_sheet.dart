@@ -23,6 +23,7 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
   Color _color = AppColors.activityPalette.first;
   int _iconCodePoint = AppIcons.activityIcons.first.icon.codePoint;
   int _targetDaysMask = 127; // all days
+  bool _requiresPhoto = false;
 
   @override
   void initState() {
@@ -34,6 +35,7 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
       _color = Color(a.colorValue);
       _iconCodePoint = a.iconCodePoint;
       _targetDaysMask = a.targetDaysMask;
+      _requiresPhoto = a.requiresPhoto;
     }
   }
 
@@ -56,7 +58,8 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
         ..type = _type
         ..colorValue = _color.value
         ..iconCodePoint = _iconCodePoint
-        ..targetDaysMask = _targetDaysMask;
+        ..targetDaysMask = _targetDaysMask
+        ..requiresPhoto = _requiresPhoto;
       await notifier.update(act);
     } else {
       await notifier.create(
@@ -65,6 +68,7 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
         color: _color,
         iconCodePoint: _iconCodePoint,
         targetDaysMask: _targetDaysMask,
+        requiresPhoto: _requiresPhoto,
       );
     }
 
@@ -161,6 +165,18 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
               mask: _targetDaysMask,
               color: _color,
               onChanged: (m) => setState(() => _targetDaysMask = m),
+            ),
+            const SizedBox(height: 20),
+
+            // ── Photo Requirement ─────────────────────────────────────────
+            SwitchListTile(
+              value: _requiresPhoto,
+              onChanged: (v) => setState(() => _requiresPhoto = v),
+              title: const Text('Require daily photo'),
+              subtitle: const Text('Capture progress for the montage'),
+              secondary: Icon(Icons.camera_alt_rounded, color: _color),
+              contentPadding: EdgeInsets.zero,
+              activeColor: _color,
             ),
             const SizedBox(height: 28),
 

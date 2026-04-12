@@ -37,6 +37,7 @@ class ActivityRepository {
     required int colorValue,
     required int iconCodePoint,
     int targetDaysMask = 127, // every day
+    bool requiresPhoto = false,
   }) async {
     final activity = Activity()
       ..name = name
@@ -44,6 +45,7 @@ class ActivityRepository {
       ..colorValue = colorValue
       ..iconCodePoint = iconCodePoint
       ..targetDaysMask = targetDaysMask
+      ..requiresPhoto = requiresPhoto
       ..createdAt = DateTime.now();
 
     await _db.writeTxn(() => _col.put(activity));

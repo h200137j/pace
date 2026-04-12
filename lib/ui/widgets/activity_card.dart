@@ -8,6 +8,7 @@ import '../../providers/analytics_provider.dart';
 import '../../providers/completion_provider.dart';
 import 'progress_ring.dart';
 import 'streak_badge.dart';
+import '../../core/services/photo_service.dart';
 
 class ActivityCard extends ConsumerWidget {
   const ActivityCard({
@@ -148,13 +149,46 @@ class _CheckInButton extends ConsumerWidget {
   final Color color;
   final double weeklyRate;
 
+  Future<void> _handleTap(BuildContext context, WidgetRef ref) async {
+    final notifier = ref.read(completionNotifierProvider.notifier);
+    final dateKey = PaceDateUtils.todayKey();
+
+    if (isDone) {
+      // Toggle off
+      await notifier.toggle(activity.id, dateKey);
+      return;
+    }
+
+    if (activity.requiresPhoto) {
+      // Show picking options
+      final source = await showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => _PhotoSourceSheet(color: color),
+      );
+
+      if (source == null) return; // User cancelled
+
+      final file = await PhotoService.instance.pickImage(fromCamera: source);
+      if (file == null) return;
+
+      final savedPath = await PhotoService.instance.saveImageToAppStorage(
+        file,
+        dateKey,
+        activity.id,
+      );
+
+      await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+    } else {
+      await notifier.toggle(activity.id, dateKey);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => ref
-          .read(completionNotifierProvider.notifier)
-          .toggle(activity.id, PaceDateUtils.todayKey()),
+      onTap: () => _handleTap(context, ref),
       child: ProgressRing(
         progress: isDone ? 1.0 : weeklyRate,
         color: color,
@@ -170,6 +204,42 @@ class _CheckInButton extends ConsumerWidget {
                   color: color.withOpacity(0.5),
                   size: 18),
         ),
+      ),
+    );
+  }
+}
+
+class _PhotoSourceSheet extends StatelessWidget {
+  const _PhotoSourceSheet({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Text('Complete with Photo', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          ListTile(
+            leading: Icon(Icons.camera_alt_rounded, color: color),
+            title: const Text('Take Photo'),
+            onTap: () => Navigator.pop(context, true),
+          ),
+          ListTile(
+            leading: Icon(Icons.photo_library_rounded, color: color),
+            title: const Text('Choose from Gallery'),
+            onTap: () => Navigator.pop(context, false),
+          ),
+          const SizedBox(height: 12),
+        ],
       ),
     );
   }

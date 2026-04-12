@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'ui/screens/analytics/analytics_screen.dart';
 import 'ui/screens/detail/activity_detail_screen.dart';
+import 'ui/screens/detail/montage_screen.dart';
 import 'ui/screens/home/home_screen.dart';
 import 'ui/screens/settings/settings_screen.dart';
 
@@ -32,6 +33,14 @@ final appRouter = GoRouter(
               builder: (_, state) => ActivityDetailScreen(
                 activityId: int.parse(state.pathParameters['id']!),
               ),
+              routes: [
+                GoRoute(
+                  path: 'montage',
+                  builder: (_, state) => MontageScreen(
+                    activityId: int.parse(state.pathParameters['id']!),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

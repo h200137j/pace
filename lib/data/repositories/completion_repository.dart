@@ -49,8 +49,8 @@ class CompletionRepository {
   // ── Writes ─────────────────────────────────────────────────────────────────
 
   /// Toggles a completion for [activityId] on [dateKey].
-  /// Returns `true` if it was added, `false` if it was removed.
-  Future<bool> toggle(int activityId, String dateKey) async {
+  /// Returns the photoPath if it was removed, or null if it was added.
+  Future<String?> toggle(int activityId, String dateKey, {String? photoPath}) async {
     final existing = await _col
         .where()
         .filter()
@@ -59,26 +59,29 @@ class CompletionRepository {
         .findFirst();
 
     if (existing != null) {
+      final oldPath = existing.photoPath;
       await _db.writeTxn(() => _col.delete(existing.id));
-      return false;
+      return oldPath;
     } else {
       final c = Completion()
         ..activityId = activityId
         ..dateKey = dateKey
+        ..photoPath = photoPath
         ..completedAt = DateTime.now();
       await _db.writeTxn(() => _col.put(c));
-      return true;
+      return null;
     }
   }
 
   /// Marks [activityId] as done today, no-op if already done.
-  Future<void> markToday(int activityId) async {
+  Future<void> markToday(int activityId, {String? photoPath}) async {
     final key = PaceDateUtils.todayKey();
     final exists = await isCompleted(activityId, key);
     if (exists) return;
     final c = Completion()
       ..activityId = activityId
       ..dateKey = key
+      ..photoPath = photoPath
       ..completedAt = DateTime.now();
     await _db.writeTxn(() => _col.put(c));
   }

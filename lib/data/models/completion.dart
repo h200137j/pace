@@ -18,6 +18,9 @@ class Completion {
   /// When the user actually tapped "done".
   late DateTime completedAt;
 
+  /// Optional local path to an uploaded photo.
+  String? photoPath;
+
   /// Optional free-text note for the session.
   String? note;
 }

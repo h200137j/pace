@@ -30,6 +30,9 @@ class Activity {
   /// 127 (0111 1111) = every day.
   late int targetDaysMask;
 
+  /// Whether a daily photo is required to complete this activity.
+  bool requiresPhoto = false;
+
   late DateTime createdAt;
 
   DateTime? archivedAt;
