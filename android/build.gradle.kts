@@ -34,6 +34,21 @@ subprojects {
     }
 }
 
+subprojects {
+    afterEvaluate {
+        if (project.hasProperty("android")) {
+            val android = project.extensions.getByName("android")
+            try {
+                // Use reflection to set compileSdkVersion to avoid classpath issues with BaseExtension
+                val setCompileSdkVersion = android.javaClass.getMethod("compileSdkVersion", Int::class.javaPrimitiveType)
+                setCompileSdkVersion.invoke(android, 36)
+            } catch (e: Exception) {
+                // Fallback for older versions or different DSLs
+            }
+        }
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
