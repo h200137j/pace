@@ -41,16 +41,21 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
+      - name: Rename APK
+        run: |
+          TAG_NAME=${GITHUB_REF_NAME:-manual}
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Pace-$TAG_NAME.apk
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: Pace-Artifacts
+          path: build/app/outputs/flutter-apk/Pace-*.apk
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: build/app/outputs/flutter-apk/Pace-*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
