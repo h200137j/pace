@@ -7,26 +7,30 @@ class ContributionGrid extends StatelessWidget {
     super.key,
     required this.dateKeys,
     required this.color,
-    this.weeks = 52,
+    this.startDate,
+    this.endDate,
   });
 
   final Set<String> dateKeys;
   final Color color;
-  final int weeks;
+  final DateTime? startDate;
+  final DateTime? endDate;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final today = PaceDateUtils.toDateOnly(DateTime.now());
 
-    // Build grid from (weeks * 7) days ago to today
-    final totalDays = weeks * 7;
-    final startDate = today.subtract(Duration(days: totalDays - 1));
+    // Use provided range or fallback to trailing 52 weeks
+    final end = endDate ?? today;
+    final start = startDate ?? end.subtract(const Duration(days: 363));
 
-    // Align to Monday
-    final weekdayOffset = startDate.weekday - 1;
-    final gridStart = startDate.subtract(Duration(days: weekdayOffset));
-    final cells = PaceDateUtils.dateRange(gridStart, today);
+    // Align start to the beginning of that week (Monday)
+    final weekdayOffset = start.weekday - 1;
+    final gridStart = start.subtract(Duration(days: weekdayOffset));
+    
+    // We want the grid to always show the full range provided
+    final cells = PaceDateUtils.dateRange(gridStart, end);
 
     final months = <int, int>{};
     for (var i = 0; i < cells.length; i++) {

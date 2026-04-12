@@ -6,10 +6,10 @@ import 'completion_provider.dart';
 
 // ── Streak Provider ────────────────────────────────────────────────────────
 
-final streakProvider =
-    FutureProvider.family<StreakResult, int>((ref, activityId) async {
-  final keys =
-      await ref.watch(completionRepositoryProvider).getDateKeysForActivity(activityId);
+final streakProvider = Provider.family<StreakResult, int>((ref, activityId) {
+  final completions =
+      ref.watch(completionsForActivityProvider(activityId)).valueOrNull ?? [];
+  final keys = completions.map((c) => c.dateKey).toSet();
   return StreakCalculator.calculate(keys);
 });
 
@@ -17,28 +17,29 @@ final streakProvider =
 
 /// Returns a map of dateKey → bool for the last [days] days.
 final recentDailyProvider =
-    FutureProvider.family<Map<String, bool>, ({int activityId, int days})>(
-  (ref, args) async {
-    final keys = await ref
-        .watch(completionRepositoryProvider)
-        .getDateKeysForActivity(args.activityId);
+    Provider.family<Map<String, bool>, ({int activityId, int days})>(
+  (ref, args) {
+    final completions =
+        ref.watch(completionsForActivityProvider(args.activityId)).valueOrNull ??
+            [];
+    final keys = completions.map((c) => c.dateKey).toSet();
 
     final end = PaceDateUtils.toDateOnly(DateTime.now());
     final start = end.subtract(Duration(days: args.days - 1));
     final range = PaceDateUtils.dateRange(start, end);
 
     return {
-      for (final d in range) PaceDateUtils.toDateKey(d): keys.contains(PaceDateUtils.toDateKey(d))
+      for (final d in range)
+        PaceDateUtils.toDateKey(d): keys.contains(PaceDateUtils.toDateKey(d))
     };
   },
 );
 
 /// Returns weekly completion rates (7 values) for the bar chart.
-final weeklyRatesProvider =
-    FutureProvider.family<List<double>, int>((ref, activityId) async {
-  final keys = await ref
-      .watch(completionRepositoryProvider)
-      .getDateKeysForActivity(activityId);
+final weeklyRatesProvider = Provider.family<List<double>, int>((ref, activityId) {
+  final completions =
+      ref.watch(completionsForActivityProvider(activityId)).valueOrNull ?? [];
+  final keys = completions.map((c) => c.dateKey).toSet();
 
   final today = PaceDateUtils.toDateOnly(DateTime.now());
   final weekStart = PaceDateUtils.weekStart(today);
@@ -50,12 +51,10 @@ final weeklyRatesProvider =
 });
 
 /// Returns a 52-week heatmap grid: list of 364 cells, each 0.0–1.0.
-/// Multiple activities can be summed; here it's per-activity.
-final yearHeatmapProvider =
-    FutureProvider.family<List<double>, int>((ref, activityId) async {
-  final keys = await ref
-      .watch(completionRepositoryProvider)
-      .getDateKeysForActivity(activityId);
+final yearHeatmapProvider = Provider.family<List<double>, int>((ref, activityId) {
+  final completions =
+      ref.watch(completionsForActivityProvider(activityId)).valueOrNull ?? [];
+  final keys = completions.map((c) => c.dateKey).toSet();
 
   final today = PaceDateUtils.toDateOnly(DateTime.now());
   final end = today;
@@ -70,11 +69,12 @@ final yearHeatmapProvider =
 
 /// Monthly completions for calendar dot view.
 final monthlyCompletionsProvider =
-    FutureProvider.family<Set<String>, ({int activityId, DateTime month})>(
-  (ref, args) async {
-    final keys = await ref
-        .watch(completionRepositoryProvider)
-        .getDateKeysForActivity(args.activityId);
+    Provider.family<Set<String>, ({int activityId, DateTime month})>(
+  (ref, args) {
+    final completions =
+        ref.watch(completionsForActivityProvider(args.activityId)).valueOrNull ??
+            [];
+    final keys = completions.map((c) => c.dateKey).toSet();
 
     final start = PaceDateUtils.monthStart(args.month);
     final days = PaceDateUtils.daysInMonth(args.month);

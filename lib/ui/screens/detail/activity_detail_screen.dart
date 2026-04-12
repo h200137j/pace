@@ -46,7 +46,7 @@ class _DetailBody extends ConsumerWidget {
     final color = Color(activity.colorValue);
     final icon = IconData(activity.iconCodePoint, fontFamily: 'MaterialIcons');
 
-    final streakAsync = ref.watch(streakProvider(activity.id));
+    final streak = ref.watch(streakProvider(activity.id));
     // For heatmap & calendar
     final completionsAsync =
         ref.watch(completionsForActivityProvider(activity.id));
@@ -54,9 +54,6 @@ class _DetailBody extends ConsumerWidget {
             ?.map((c) => c.dateKey)
             .toSet() ??
         {};
-
-    final streak = streakAsync.valueOrNull ??
-        const StreakResult(current: 0, longest: 0, totalCompletions: 0);
 
     return Scaffold(
       body: CustomScrollView(
@@ -157,7 +154,12 @@ class _DetailBody extends ConsumerWidget {
                 children: [
                   _SectionTitle('52-Week Overview'),
                   const SizedBox(height: 12),
-                  ContributionGrid(dateKeys: dateKeys, color: color),
+                  ContributionGrid(
+                    dateKeys: dateKeys,
+                    color: color,
+                    startDate: DateTime(DateTime.now().year, 1, 1),
+                    endDate: DateTime(DateTime.now().year, 12, 31),
+                  ),
                 ],
               ),
             ),
@@ -178,25 +180,53 @@ class _DetailBody extends ConsumerWidget {
             ),
           ),
 
-          // ── Monthly Calendar ────────────────────────────────────────────
+          // ── Yearly Calendar ────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 40),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SectionTitle('This Month — ${DateFormat('MMMM yyyy').format(DateTime.now())}'),
-                  const SizedBox(height: 12),
-                  _MonthCalendar(
-                    activityId: activity.id,
-                    color: color,
-                    dateKeys: dateKeys,
-                    month: DateTime.now(),
-                  ),
-                ],
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              child: _SectionTitle('Activity Calendar'),
             ),
           ),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                // Generate months backwards from today
+                final monthDate = DateTime(
+                  DateTime.now().year,
+                  DateTime.now().month - index,
+                  1,
+                );
+                
+                // Limit to 12 months for "the year"
+                if (index >= 12) return null;
+
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        DateFormat('MMMM yyyy').format(monthDate),
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _MonthCalendar(
+                        activityId: activity.id,
+                        color: color,
+                        dateKeys: dateKeys,
+                        month: monthDate,
+                      ),
+                    ],
+                  ),
+                );
+              },
+              childCount: 12,
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
       ),
     );
@@ -302,78 +332,69 @@ class _LineChart30Days extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final dataAsync = ref.watch(recentDailyProvider(
+    final data = ref.watch(recentDailyProvider(
       (activityId: activityId, days: 30),
     ));
 
-    return dataAsync.when(
-      loading: () => const SizedBox(
-        height: 140,
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (_, __) => const SizedBox(height: 140),
-      data: (data) {
-        final spots = data.entries.toList().asMap().entries.map((e) {
-          return FlSpot(e.key.toDouble(), e.value.value ? 1 : 0);
-        }).toList();
+    final spots = data.values.toList().asMap().entries.map((MapEntry<int, bool> e) {
+      return FlSpot(e.key.toDouble(), e.value ? 1.0 : 0.0);
+    }).toList();
 
-        return SizedBox(
-          height: 140,
-          child: LineChart(
-            LineChartData(
-              gridData: const FlGridData(show: false),
-              borderData: FlBorderData(show: false),
-              titlesData: const FlTitlesData(show: false),
-              lineTouchData: LineTouchData(
-                touchTooltipData: LineTouchTooltipData(
-                  getTooltipItems: (spots) => spots
-                      .map((s) => LineTooltipItem(
-                            s.y == 1 ? '✓' : '✗',
-                            TextStyle(
-                                color: color, fontWeight: FontWeight.w700),
-                          ))
-                      .toList(),
-                ),
-              ),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: spots,
-                  isCurved: true,
-                  curveSmoothness: 0.35,
-                  color: color,
-                  barWidth: 2.5,
-                  dotData: FlDotData(
-                    show: true,
-                    getDotPainter: (spot, _, __, ___) =>
-                        FlDotCirclePainter(
-                      radius: 3,
-                      color: spot.y == 1 ? color : Colors.transparent,
-                      strokeColor: color,
-                      strokeWidth: 1.5,
-                    ),
-                  ),
-                  belowBarData: BarAreaData(
-                    show: true,
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        color.withOpacity(0.25),
-                        color.withOpacity(0.0),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+    return SizedBox(
+      height: 140,
+      child: LineChart(
+        LineChartData(
+          gridData: const FlGridData(show: false),
+          borderData: FlBorderData(show: false),
+          titlesData: const FlTitlesData(show: false),
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipItems: (spots) => spots
+                  .map((s) => LineTooltipItem(
+                        s.y == 1 ? '✓' : '✗',
+                        TextStyle(
+                            color: color, fontWeight: FontWeight.w700),
+                      ))
+                  .toList(),
             ),
           ),
-        );
-      },
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: true,
+              curveSmoothness: 0.35,
+              color: color,
+              barWidth: 2.5,
+              dotData: FlDotData(
+                show: true,
+                getDotPainter: (spot, _, __, ___) =>
+                    FlDotCirclePainter(
+                  radius: 3,
+                  color: spot.y == 1 ? color : Colors.transparent,
+                  strokeColor: color,
+                  strokeWidth: 1.5,
+                ),
+              ),
+              belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    color.withValues(alpha: 0.25),
+                    color.withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _MonthCalendar extends StatelessWidget {
+class _MonthCalendar extends ConsumerWidget {
   const _MonthCalendar({
     required this.activityId,
     required this.color,
@@ -387,7 +408,7 @@ class _MonthCalendar extends StatelessWidget {
   final DateTime month;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final firstDay = DateTime.utc(month.year, month.month, 1);
     final daysInMonth = PaceDateUtils.daysInMonth(month);
@@ -412,30 +433,37 @@ class _MonthCalendar extends StatelessWidget {
         final done = dateKeys.contains(key);
         final isToday = date == today;
 
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: done
-                ? color
-                : isToday
-                    ? color.withOpacity(0.15)
-                    : Colors.transparent,
-            border: isToday && !done
-                ? Border.all(color: color, width: 1.5)
-                : null,
-          ),
-          child: Center(
-            child: Text(
-              '$day',
-              style: theme.textTheme.labelSmall?.copyWith(
-                fontWeight: done || isToday ? FontWeight.w700 : FontWeight.w400,
-                color: done
-                    ? Colors.white
-                    : isToday
-                        ? color
-                        : theme.colorScheme.onSurfaceVariant,
-                fontSize: 11,
+        return InkWell(
+          onTap: () {
+            if (date.isAfter(today)) return; // Can't mark future
+            ref.read(completionNotifierProvider.notifier).toggle(activityId, key);
+          },
+          borderRadius: BorderRadius.circular(100),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: done
+                  ? color
+                  : isToday
+                      ? color.withValues(alpha: 0.15)
+                      : Colors.transparent,
+              border: isToday && !done
+                  ? Border.all(color: color, width: 1.5)
+                  : null,
+            ),
+            child: Center(
+              child: Text(
+                '$day',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: done || isToday ? FontWeight.w700 : FontWeight.w400,
+                  color: done
+                      ? Colors.white
+                      : isToday
+                          ? color
+                          : theme.colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
               ),
             ),
           ),

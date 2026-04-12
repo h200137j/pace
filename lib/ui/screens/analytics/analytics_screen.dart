@@ -120,8 +120,7 @@ class _WeekBarChart extends ConsumerWidget {
     // Collect weekly data per activity
     final allData = <int, List<double>>{};
     for (final a in activities) {
-      final rates = r.watch(weeklyRatesProvider(a.id)).valueOrNull;
-      if (rates != null) allData[a.id] = rates;
+      allData[a.id] = r.watch(weeklyRatesProvider(a.id));
     }
 
     if (allData.isEmpty) {
@@ -177,7 +176,7 @@ class _ActivityWeekRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final color = Color(activity.colorValue);
-    final rates = ref.watch(weeklyRatesProvider(activity.id)).valueOrNull ?? [];
+    final rates = ref.watch(weeklyRatesProvider(activity.id));
     final done = rates.where((r) => r > 0).length;
 
     return Padding(
@@ -187,7 +186,7 @@ class _ActivityWeekRow extends ConsumerWidget {
           Container(
             width: 32,
             height: 32,
-            decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
             child: Icon(
               IconData(activity.iconCodePoint, fontFamily: 'MaterialIcons'),
               color: color,
@@ -207,7 +206,7 @@ class _ActivityWeekRow extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: done / 7,
-                    backgroundColor: color.withOpacity(0.12),
+                    backgroundColor: color.withValues(alpha: 0.12),
                     valueColor: AlwaysStoppedAnimation(color),
                     minHeight: 6,
                   ),
@@ -290,13 +289,10 @@ class _Month30Chart extends ConsumerWidget {
     final bars = <LineChartBarData>[];
 
     for (final a in activities) {
-      final data = ref
-          .watch(recentDailyProvider((activityId: a.id, days: 30)))
-          .valueOrNull;
-      if (data == null) continue;
+      final data = ref.watch(recentDailyProvider((activityId: a.id, days: 30)));
 
-      final spots = data.entries.toList().asMap().entries.map((e) {
-        return FlSpot(e.key.toDouble(), e.value.value ? 1.0 : 0.0);
+      final spots = data.values.toList().asMap().entries.map((e) {
+        return FlSpot(e.key.toDouble(), e.value ? 1.0 : 0.0);
       }).toList();
 
       final color = Color(a.colorValue);
@@ -309,7 +305,7 @@ class _Month30Chart extends ConsumerWidget {
         dotData: const FlDotData(show: false),
         belowBarData: BarAreaData(
           show: true,
-          color: color.withOpacity(0.07),
+          color: color.withValues(alpha: 0.07),
         ),
       ));
     }
@@ -386,7 +382,12 @@ class _YearTabState extends ConsumerState<_YearTab> {
             style: theme.textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(height: 12),
-        ContributionGrid(dateKeys: dateKeys, color: color, weeks: 52),
+        ContributionGrid(
+          dateKeys: dateKeys,
+          color: color,
+          startDate: DateTime(DateTime.now().year, 1, 1),
+          endDate: DateTime(DateTime.now().year, 12, 31),
+        ),
         const SizedBox(height: 24),
         // Monthly bar chart for the year
         Text('Monthly Completions',
@@ -458,7 +459,7 @@ class _YearlyBarChart extends ConsumerWidget {
             barRods: [
               BarChartRodData(
                 toY: monthlyCounts[i].toDouble(),
-                color: i < now.month ? color : color.withOpacity(0.25),
+                color: i < now.month ? color : color.withValues(alpha: 0.25),
                 width: 14,
                 borderRadius: BorderRadius.circular(4),
               ),

@@ -28,12 +28,9 @@ class ActivityCard extends ConsumerWidget {
     final icon = IconData(activity.iconCodePoint, fontFamily: 'MaterialIcons');
 
     final isDoneToday = ref.watch(todayDoneProvider(activity.id));
-    final streakAsync = ref.watch(streakProvider(activity.id));
-    final weeklyAsync = ref.watch(weeklyRatesProvider(activity.id));
+    final streak = ref.watch(streakProvider(activity.id));
+    final weeklyRates = ref.watch(weeklyRatesProvider(activity.id));
 
-    final streak = streakAsync.valueOrNull ??
-        const StreakResult(current: 0, longest: 0, totalCompletions: 0);
-    final weeklyRates = weeklyAsync.valueOrNull ?? List.filled(7, 0.0);
     final weeklyRate =
         weeklyRates.fold(0.0, (a, b) => a + b) / weeklyRates.length;
 
@@ -58,9 +55,9 @@ class ActivityCard extends ConsumerWidget {
             ],
           ),
           border: Border.all(
-            color: isDoneToday ? color.withOpacity(0.5) : color.withOpacity(0.15),
-            width: 1.5,
-          ),
+          color: isDoneToday ? color.withValues(alpha: 0.5) : color.withValues(alpha: 0.15),
+          width: 1.5,
+        ),
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
