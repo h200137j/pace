@@ -17,6 +17,7 @@
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
 [![Isar](https://img.shields.io/badge/Isar-Database-6750A4?style=for-the-badge)](https://isar.dev)
 [![Riverpod](https://img.shields.io/badge/Riverpod-State-00BCD4?style=for-the-badge)](https://riverpod.dev)
+[![Latest Release](https://img.shields.io/github/v/release/h200137j/pace?style=for-the-badge&color=2196F3)](https://github.com/h200137j/pace/releases/latest)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 <br />
@@ -223,10 +224,11 @@ Pace stores all data **100% locally** on your device using Isar. No analytics, n
 
 ## 🛣️ Roadmap
 
-- [ ] Local push notification reminders
+- [x] Local push notification reminders
 - [ ] Android / iOS home screen widget
 - [ ] Multiple streaks per activity (e.g. weekly targets)
 - [ ] Notes per completion entry
+- [x] In-app update system with changelog
 - [ ] iCloud / Google Drive optional sync
 - [ ] Apple Watch / Wear OS companion
 
