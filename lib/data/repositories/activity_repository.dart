@@ -4,7 +4,7 @@ import '../models/activity.dart';
 import '../services/isar_service.dart';
 
 class ActivityRepository {
-  final _db = IsarService.instance.db;
+  Isar get _db => IsarService.instance.db;
 
   IsarCollection<Activity> get _col => _db.activitys;
 

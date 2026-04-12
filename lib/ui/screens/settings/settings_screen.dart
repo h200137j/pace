@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../data/repositories/activity_repository.dart';
-import '../../../data/repositories/completion_repository.dart';
+// import '../../../data/repositories/activity_repository.dart';
+// import '../../../data/repositories/completion_repository.dart';
 import '../../../data/services/export_service.dart';
 import '../../../providers/activity_provider.dart';
 import '../../../providers/completion_provider.dart';
@@ -36,7 +36,7 @@ class SettingsScreen extends ConsumerWidget {
           SliverList(
             delegate: SliverChildListDelegate([
               // ── Appearance ──────────────────────────────────────────────
-              _SectionHeader('Appearance'),
+              const _SectionHeader('Appearance'),
               _SettingsTile(
                 icon: Icons.dark_mode_rounded,
                 title: 'Dark Mode',
@@ -103,7 +103,7 @@ class SettingsScreen extends ConsumerWidget {
               const Divider(height: 32),
 
               // ── Data Portability ─────────────────────────────────────────
-              _SectionHeader('Data'),
+              const _SectionHeader('Data'),
               _SettingsTile(
                 icon: Icons.upload_rounded,
                 title: 'Export JSON Backup',
@@ -165,8 +165,8 @@ class SettingsScreen extends ConsumerWidget {
               const Divider(height: 32),
 
               // ── About ─────────────────────────────────────────────────────
-              _SectionHeader('About'),
-              _SettingsTile(
+              const _SectionHeader('About'),
+              const _SettingsTile(
                 icon: Icons.info_outline_rounded,
                 title: 'Pace',
                 subtitle: 'v1.0.0 — Built with Flutter & Isar',

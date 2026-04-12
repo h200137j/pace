@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
-import '../../../core/utils/date_utils.dart';
+// import '../../../core/utils/date_utils.dart';
 import '../../../data/models/activity.dart';
 import '../../../providers/activity_provider.dart';
 
@@ -176,7 +176,7 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
               subtitle: const Text('Capture progress for the montage'),
               secondary: Icon(Icons.camera_alt_rounded, color: _color),
               contentPadding: EdgeInsets.zero,
-              activeColor: _color,
+              activeThumbColor: _color,
             ),
             const SizedBox(height: 28),
 

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/date_utils.dart';
-import '../../core/utils/streak_calculator.dart';
 import '../../data/models/activity.dart';
 import '../../providers/analytics_provider.dart';
 import '../../providers/completion_provider.dart';

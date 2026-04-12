@@ -166,7 +166,7 @@ class _DetailBody extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SectionTitle('52-Week Overview'),
+                  const _SectionTitle('52-Week Overview'),
                   const SizedBox(height: 12),
                   ContributionGrid(
                     dateKeys: dateKeys,
@@ -186,7 +186,7 @@ class _DetailBody extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SectionTitle('Last 30 Days'),
+                  const _SectionTitle('Last 30 Days'),
                   const SizedBox(height: 12),
                   _LineChart30Days(activityId: activity.id, color: color),
                 ],
@@ -195,9 +195,9 @@ class _DetailBody extends ConsumerWidget {
           ),
 
           // ── Yearly Calendar ────────────────────────────────────────────
-          SliverToBoxAdapter(
+          const SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
               child: _SectionTitle('Activity Calendar'),
             ),
           ),

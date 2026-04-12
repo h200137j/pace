@@ -74,7 +74,7 @@ class _MontageScreenState extends ConsumerState<MontageScreen> {
       ),
       body: completionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
-        error: (e, _) => Center(child: Text('Error loading photos', style: TextStyle(color: Colors.white))),
+        error: (e, _) => const Center(child: Text('Error loading photos', style: TextStyle(color: Colors.white))),
         data: (completions) {
           final photoCompletions = completions
               .where((c) => c.photoPath != null)

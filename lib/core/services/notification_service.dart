@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
+// import 'package:timezone/timezone.dart' as tz;
 import '../../data/models/activity.dart';
 import '../../data/repositories/completion_repository.dart';
 import '../../data/services/isar_service.dart';
@@ -87,7 +87,7 @@ class NotificationService {
   }
 
   Future<void> showChallengeNotification(Activity activity) async {
-    final androidDetails = AndroidNotificationDetails(
+    const androidDetails = AndroidNotificationDetails(
       'challenge_reminders',
       'Challenge Reminders',
       channelDescription: 'Persistent notifications for pending challenges',
