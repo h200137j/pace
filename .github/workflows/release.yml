@@ -1,70 +1,56 @@
-name: Release APK
+name: Android Release
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build & Release APK
+    name: Build Signed APK
     runs-on: ubuntu-latest
-
     steps:
-      # ── Checkout ─────────────────────────────────────────────────────────
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # ── Java (required for Android toolchain) ─────────────────────────────
-      - name: Set up Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
 
-      # ── Flutter SDK ───────────────────────────────────────────────────────
-      - name: Set up Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.x'
-          channel: stable
-          cache: true
+          channel: 'stable'
 
-      # ── Dependencies ──────────────────────────────────────────────────────
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=upload-keystore.jks" >> android/key.properties
+
       - name: Install dependencies
         run: flutter pub get
 
-      # ── Isar code generation ──────────────────────────────────────────────
-      - name: Generate Isar schemas
-        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Build APK
+        run: flutter build apk --release
 
-      # ── Extract version from tag (strips leading 'v') ─────────────────────
-      - name: Extract version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
 
-      # ── Build release APK ─────────────────────────────────────────────────
-      - name: Build release APK
-        run: |
-          flutter build apk --release \
-            --build-name=${{ steps.version.outputs.VERSION }} \
-            --build-number=${{ github.run_number }}
-
-      # ── Rename APK with version ───────────────────────────────────────────
-      - name: Rename APK
-        run: |
-          mv build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/pace-v${{ steps.version.outputs.VERSION }}.apk
-
-      # ── Create GitHub Release and upload APK ─────────────────────────────
-      - name: Create GitHub Release
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: Pace v${{ steps.version.outputs.VERSION }}
-          tag_name: ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: build/app/outputs/flutter-apk/pace-v${{ steps.version.outputs.VERSION }}.apk
+          files: build/app/outputs/flutter-apk/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
