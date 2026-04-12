@@ -30,6 +30,9 @@ dependencies:
 
   # UI
   flex_color_scheme: ^8.4.0
+  flutter_local_notifications: ^17.2.2
+  workmanager: ^0.9.0+3
+  timezone: ^0.9.4
 
   # File I/O / sharing
   share_plus: ^8.0.2
