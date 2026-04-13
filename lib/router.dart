@@ -1,8 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'providers/ui_state_provider.dart';
 import 'ui/screens/analytics/analytics_screen.dart';
 import 'ui/screens/detail/activity_detail_screen.dart';
 import 'ui/screens/detail/montage_screen.dart';
@@ -21,7 +23,9 @@ final appRouter = GoRouter(
   initialLocation: '/home',
   routes: [
     StatefulShellRoute.indexedStack(
-      builder: (ctx, state, shell) => _AppShell(shell: shell),
+      builder: (ctx, state, shell) => Consumer(
+        builder: (context, ref, _) => _AppShell(shell: shell),
+      ),
       branches: [
         StatefulShellBranch(
           navigatorKey: _homeNavigatorKey,
@@ -69,14 +73,16 @@ final appRouter = GoRouter(
   ],
 );
 
-class _AppShell extends StatelessWidget {
+class _AppShell extends ConsumerWidget {
   const _AppShell({required this.shell});
 
   final StatefulNavigationShell shell;
   final Color _accentColor = const Color(0xFF00F2FF); // Electric Cyan
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isCreateSheetOpen = ref.watch(createSheetOpenProvider);
+    
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0F),
       extendBody: true,
@@ -109,19 +115,20 @@ class _AppShell extends StatelessWidget {
           shell,
 
           // ── Bottom Navigation Bar ────────────────────────────────────────
-          Positioned(
-            left: 20,
-            right: 20,
-            bottom: 30,
-            child: _CustomBottomNav(
-              selectedIndex: shell.currentIndex,
-              onTap: (index) => shell.goBranch(
-                index,
-                initialLocation: index == shell.currentIndex,
+          if (!isCreateSheetOpen)
+            Positioned(
+              left: 20,
+              right: 20,
+              bottom: 30,
+              child: _CustomBottomNav(
+                selectedIndex: shell.currentIndex,
+                onTap: (index) => shell.goBranch(
+                  index,
+                  initialLocation: index == shell.currentIndex,
+                ),
+                accentColor: _accentColor,
               ),
-              accentColor: _accentColor,
             ),
-          ),
         ],
       ),
     );

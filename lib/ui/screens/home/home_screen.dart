@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../providers/activity_provider.dart';
+import '../../../providers/ui_state_provider.dart';
 import '../../../core/services/update_service.dart';
 import '../../widgets/activity_card.dart';
 import '../../widgets/empty_state.dart';
@@ -31,10 +32,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _checkForUpdates() async {
     final info = await UpdateService.checkForUpdates();
     if (info != null && mounted) {
-      showModalBottomSheet(
+      showDialog(
         context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
+        barrierDismissible: false,
         builder: (_) => UpdateSheet(updateInfo: info),
       );
     }
@@ -212,13 +212,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _openCreate(BuildContext context) {
+    ref.read(createSheetOpenProvider.notifier).state = true;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const CreateActivitySheet(),
-    );
+    ).whenComplete(() {
+      ref.read(createSheetOpenProvider.notifier).state = false;
+    });
   }
 }
 

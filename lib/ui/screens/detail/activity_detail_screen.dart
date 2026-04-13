@@ -11,6 +11,7 @@ import '../../../data/models/activity.dart';
 import '../../../providers/activity_provider.dart';
 import '../../../providers/analytics_provider.dart';
 import '../../../providers/completion_provider.dart';
+import '../../../providers/ui_state_provider.dart';
 import '../../../core/services/photo_service.dart';
 import '../../widgets/contribution_grid.dart';
 import '../create/create_activity_sheet.dart';
@@ -69,13 +70,7 @@ class _DetailBody extends ConsumerWidget {
             actions: [
               IconButton(
                 icon: const Icon(Icons.edit_outlined),
-                onPressed: () => showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  useSafeArea: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => CreateActivitySheet(existing: activity),
-                ),
+                onPressed: () => _openEditSheet(context, ref),
               ),
               IconButton(
                 icon: Icon(Icons.delete_outline_rounded,
@@ -257,9 +252,10 @@ class _DetailBody extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-              onPressed: () => ctx.pop(false), child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           FilledButton(
-            onPressed: () => ctx.pop(true),
+            onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Archive'),
           ),
         ],
@@ -271,6 +267,19 @@ class _DetailBody extends ConsumerWidget {
           .archive(activity.id);
       if (context.mounted) context.pop();
     }
+  }
+
+  void _openEditSheet(BuildContext context, WidgetRef ref) {
+    ref.read(createSheetOpenProvider.notifier).state = true;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CreateActivitySheet(existing: activity),
+    ).whenComplete(() {
+      ref.read(createSheetOpenProvider.notifier).state = false;
+    });
   }
 }
 
