@@ -3,9 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
-
-import '../../../core/services/video_export_service.dart';
 import '../../../providers/activity_provider.dart';
 import '../../../providers/completion_provider.dart';
 import '../../../providers/ui_state_provider.dart';
@@ -58,65 +55,7 @@ class _MontageScreenState extends ConsumerState<MontageScreen> {
     }
   }
 
-  Future<void> _exportVideo(List<String> imagePaths) async {
-    if (imagePaths.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No photos to export')),
-      );
-      return;
-    }
-
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Creating Video'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text('Processing ${imagePaths.length} photos at $speedLabel...',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      final videoPath = await VideoExportService.createVideoMontage(
-        imagePaths: imagePaths,
-        fps: _fps,
-      );
-
-      if (mounted) Navigator.pop(context); // Close loading dialog
-
-      if (videoPath != null) {
-        // Share the video
-        await Share.shareXFiles(
-          [XFile(videoPath)],
-          text: 'Check out my montage!',
-        );
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to create video')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    }
-  }
+  
 
   String get speedLabel {
     switch (_fps) {
@@ -173,19 +112,6 @@ class _MontageScreenState extends ConsumerState<MontageScreen> {
             IconButton(
               icon: Icon(_isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white),
               onPressed: _togglePlay,
-            ),
-            // Export
-            IconButton(
-              icon: const Icon(Icons.file_download_rounded, color: Colors.white),
-              onPressed: () {
-                final completions = completionsAsync.valueOrNull ?? [];
-                final photoCompletions = completions
-                    .where((c) => c.photoPath != null)
-                    .map((c) => c.photoPath!)
-                    .toList()
-                    ..sort();
-                _exportVideo(photoCompletions);
-              },
             ),
           ],
         ],
