@@ -96,7 +96,7 @@ class NotificationService {
       ongoing: true,
       autoCancel: false,
       actions: <AndroidNotificationAction>[
-        const AndroidNotificationAction(
+        AndroidNotificationAction(
           'mark_done',
           'Mark Done',
           showsUserInterface: false,
@@ -105,7 +105,7 @@ class NotificationService {
       ],
     );
 
-    final notificationDetails = NotificationDetails(
+    const notificationDetails = NotificationDetails(
       android: androidDetails,
     );
 

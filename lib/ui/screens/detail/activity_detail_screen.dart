@@ -89,7 +89,7 @@ class _DetailBody extends ConsumerWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, color: color, size: 18),
@@ -179,16 +179,18 @@ class _DetailBody extends ConsumerWidget {
             ),
           ),
 
-          // ── 30-Day Line Chart ───────────────────────────────────────────
+          // ── Advanced Performance Charts ─────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _SectionTitle('Last 30 Days'),
+                  const _SectionTitle('Performance Signals'),
                   const SizedBox(height: 12),
-                  _LineChart30Days(activityId: activity.id, color: color),
+                  _MomentumChart30Days(activityId: activity.id, color: color),
+                  const SizedBox(height: 16),
+                  _WeekdayPatternChart(activityId: activity.id, color: color),
                 ],
               ),
             ),
@@ -300,9 +302,9 @@ class _PhotoCheckIn extends ConsumerWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             gradient: LinearGradient(
-              colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
+              colors: [color.withValues(alpha: 0.15), color.withValues(alpha: 0.05)],
             ),
-            border: Border.all(color: color.withOpacity(0.3)),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
           ),
           child: Column(
             children: [
@@ -415,10 +417,10 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(16),
           border:
-              Border.all(color: color.withOpacity(0.2)),
+              Border.all(color: color.withValues(alpha: 0.2)),
         ),
         child: Column(
           children: [
@@ -516,8 +518,8 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _LineChart30Days extends ConsumerWidget {
-  const _LineChart30Days({required this.activityId, required this.color});
+class _MomentumChart30Days extends ConsumerWidget {
+  const _MomentumChart30Days({required this.activityId, required this.color});
 
   final int activityId;
   final Color color;
@@ -528,58 +530,216 @@ class _LineChart30Days extends ConsumerWidget {
       (activityId: activityId, days: 30),
     ));
 
-    final spots = data.values.toList().asMap().entries.map((MapEntry<int, bool> e) {
+    final values = data.values.toList();
+    final spots = values.asMap().entries.map((MapEntry<int, bool> e) {
       return FlSpot(e.key.toDouble(), e.value ? 1.0 : 0.0);
     }).toList();
 
+    final rolling = <FlSpot>[];
+    for (var i = 0; i < values.length; i++) {
+      final start = i - 6 < 0 ? 0 : i - 6;
+      final segment = values.sublist(start, i + 1);
+      final avg = segment.where((v) => v).length / segment.length;
+      rolling.add(FlSpot(i.toDouble(), avg));
+    }
+
     return SizedBox(
-      height: 140,
-      child: LineChart(
-        LineChartData(
-          gridData: const FlGridData(show: false),
+      height: 170,
+      child: BarChart(
+        BarChartData(
+          minY: 0,
+          maxY: 1.2,
+          alignment: BarChartAlignment.spaceBetween,
           borderData: FlBorderData(show: false),
-          titlesData: const FlTitlesData(show: false),
-          lineTouchData: LineTouchData(
-            touchTooltipData: LineTouchTooltipData(
-              getTooltipItems: (spots) => spots
-                  .map((s) => LineTooltipItem(
-                        s.y == 1 ? '✓' : '✗',
-                        TextStyle(
-                            color: color, fontWeight: FontWeight.w700),
-                      ))
-                  .toList(),
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            horizontalInterval: 0.25,
+            getDrawingHorizontalLine: (_) => FlLine(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.12),
+              strokeWidth: 1,
             ),
           ),
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              curveSmoothness: 0.35,
-              color: color,
-              barWidth: 2.5,
-              dotData: FlDotData(
-                show: true,
-                getDotPainter: (spot, _, __, ___) =>
-                    FlDotCirclePainter(
-                  radius: 3,
-                  color: spot.y == 1 ? color : Colors.transparent,
-                  strokeColor: color,
-                  strokeWidth: 1.5,
-                ),
-              ),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    color.withValues(alpha: 0.25),
-                    color.withValues(alpha: 0.0),
-                  ],
+          titlesData: FlTitlesData(
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 32,
+                interval: 0.25,
+                getTitlesWidget: (v, _) => Text(
+                  '${(v * 100).toInt()}%',
+                  style: Theme.of(context).textTheme.labelSmall,
                 ),
               ),
             ),
-          ],
+            bottomTitles: const AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: false,
+              ),
+            ),
+          ),
+          barTouchData: BarTouchData(
+            touchTooltipData: BarTouchTooltipData(
+              getTooltipItem: (group, _, rod, __) {
+                return BarTooltipItem(
+                  rod.toY > 0.5 ? 'Completed' : 'Missed',
+                  TextStyle(
+                    color: rod.toY > 0.5 ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.w700,
+                  ),
+                );
+              },
+            ),
+          ),
+          barGroups: spots.map((s) {
+            return BarChartGroupData(
+              x: s.x.toInt(),
+              barRods: [
+                BarChartRodData(
+                  toY: s.y,
+                  width: 6,
+                  color: s.y == 1 ? color : color.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ],
+              showingTooltipIndicators: const [],
+            );
+          }).toList(),
+          extraLinesData: ExtraLinesData(
+            extraLinesOnTop: true,
+            horizontalLines: [
+              HorizontalLine(
+                y: rolling.last.y,
+                color: Colors.orange.withValues(alpha: 0.8),
+                strokeWidth: 1.6,
+                dashArray: [4, 4],
+                label: HorizontalLineLabel(
+                  show: true,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  alignment: Alignment.topRight,
+                  labelResolver: (_) =>
+                      '7d avg ${(rolling.last.y * 100).toStringAsFixed(0)}%',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeekdayPatternChart extends ConsumerWidget {
+  const _WeekdayPatternChart({required this.activityId, required this.color});
+
+  final int activityId;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final completions =
+        ref.watch(completionsForActivityProvider(activityId)).valueOrNull ?? [];
+    final keys = completions.map((c) => c.dateKey).toSet();
+    final today = PaceDateUtils.toDateOnly(DateTime.now());
+    final start = today.subtract(const Duration(days: 83));
+    final range = PaceDateUtils.dateRange(start, today);
+
+    final totalByWeekday = List<int>.filled(7, 0);
+    final doneByWeekday = List<int>.filled(7, 0);
+
+    for (final date in range) {
+      final weekdayIdx = date.weekday - 1;
+      totalByWeekday[weekdayIdx] += 1;
+      if (keys.contains(PaceDateUtils.toDateKey(date))) {
+        doneByWeekday[weekdayIdx] += 1;
+      }
+    }
+
+    final rates = List<double>.generate(
+      7,
+      (i) => totalByWeekday[i] == 0 ? 0.0 : doneByWeekday[i] / totalByWeekday[i],
+    );
+
+    const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    return SizedBox(
+      height: 180,
+      child: BarChart(
+        BarChartData(
+          maxY: 1,
+          alignment: BarChartAlignment.spaceAround,
+          borderData: FlBorderData(show: false),
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            horizontalInterval: 0.25,
+            getDrawingHorizontalLine: (_) => FlLine(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.12),
+              strokeWidth: 1,
+            ),
+          ),
+          titlesData: FlTitlesData(
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 30,
+                interval: 0.25,
+                getTitlesWidget: (v, _) => Text(
+                  '${(v * 100).toInt()}%',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (v, _) => Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    labels[v.toInt()],
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          barTouchData: BarTouchData(
+            touchTooltipData: BarTouchTooltipData(
+              getTooltipItem: (group, _, rod, __) {
+                return BarTooltipItem(
+                  '${labels[group.x]} ${(rod.toY * 100).toStringAsFixed(0)}%',
+                  const TextStyle(fontWeight: FontWeight.w700),
+                );
+              },
+            ),
+          ),
+          barGroups: List.generate(7, (i) {
+            return BarChartGroupData(
+              x: i,
+              barRods: [
+                BarChartRodData(
+                  toY: rates[i],
+                  width: 16,
+                  borderRadius: BorderRadius.circular(8),
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      color.withValues(alpha: 0.6),
+                      color,
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }),
         ),
       ),
     );

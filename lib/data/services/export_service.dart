@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:csv/csv.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import 'package:share_plus/share_plus.dart';
 
 import '../models/activity.dart';
@@ -53,36 +53,28 @@ class ExportService {
         .map((e) => _activityFromMap(e as Map<String, dynamic>))
         .toList();
 
-    final comps = (payload['completions'] as List)
-        .map((e) => _completionFromMap(e as Map<String, dynamic>))
-        .toList();
-
     for (final a in acts) {
       await _actRepo.update(a);
     }
+
+    final comps = <Completion>[];
+    for (final e in payload['completions'] as List) {
+      final map = e as Map<String, dynamic>;
+      final completion = _completionFromMap(map);
+      final photoData = map['photoData'] as String?;
+      final photoFileName = map['photoFileName'] as String?;
+      if (photoData != null) {
+        completion.photoPath = await _restorePhoto(
+          photoData,
+          completion.activityId,
+          completion.dateKey,
+          photoFileName: photoFileName,
+        );
+      }
+      comps.add(completion);
+    }
+
     await _compRepo.importBatch(comps);
-  }
-
-  // ── CSV Export ─────────────────────────────────────────────────────────────
-
-  Future<void> exportCsv() async {
-    final activities = await _actRepo.getAll();
-    final actMap = {for (final a in activities) a.id: a.name};
-    final completions = await _compRepo.getAll();
-
-    final rows = <List<dynamic>>[
-      ['activity_id', 'activity_name', 'date', 'completed_at'],
-      ...completions.map((c) => [
-            c.activityId,
-            actMap[c.activityId] ?? 'Unknown',
-            c.dateKey,
-            c.completedAt.toIso8601String(),
-          ]),
-    ];
-
-    final csv = const ListToCsvConverter().convert(rows);
-    final file = await _writeTemp('pace_completions.csv', csv);
-    await Share.shareXFiles([XFile(file.path)], text: 'Pace CSV export');
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -122,6 +114,9 @@ class ExportService {
         'activityId': c.activityId,
         'dateKey': c.dateKey,
         'completedAt': c.completedAt.toIso8601String(),
+        'photoPath': c.photoPath,
+        'photoFileName': c.photoPath != null ? path.basename(c.photoPath!) : null,
+        'photoData': _encodePhoto(c.photoPath),
         'note': c.note,
       };
 
@@ -130,5 +125,35 @@ class ExportService {
     ..activityId = m['activityId'] as int
     ..dateKey = m['dateKey'] as String
     ..completedAt = DateTime.parse(m['completedAt'] as String)
+    ..photoPath = m['photoPath'] as String?
     ..note = m['note'] as String?;
+
+  String? _encodePhoto(String? photoPath) {
+    if (photoPath == null) return null;
+    final file = File(photoPath);
+    if (!file.existsSync()) return null;
+    return base64Encode(file.readAsBytesSync());
+  }
+
+  Future<String> _restorePhoto(
+    String photoData,
+    int activityId,
+    String dateKey, {
+    String? photoFileName,
+  }) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final photosDir = Directory(path.join(directory.path, 'activity_photos'));
+    if (!await photosDir.exists()) {
+      await photosDir.create(recursive: true);
+    }
+
+    final bytes = base64Decode(photoData);
+    final extension = photoFileName != null && path.extension(photoFileName).isNotEmpty
+        ? path.extension(photoFileName)
+        : '.jpg';
+    final fileName = '${activityId}_$dateKey$extension';
+    final file = File(path.join(photosDir.path, fileName));
+    await file.writeAsBytes(bytes, flush: true);
+    return file.path;
+  }
 }

@@ -1,5 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/utils/date_utils.dart';
 import '../../data/models/activity.dart';
@@ -42,92 +44,137 @@ class ActivityCard extends ConsumerWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color.withOpacity(isDoneToday ? 0.22 : 0.10),
-              color.withOpacity(isDoneToday ? 0.10 : 0.04),
-            ],
-          ),
-          border: Border.all(
-          color: isDoneToday ? color.withValues(alpha: 0.5) : color.withValues(alpha: 0.15),
-          width: 1.5,
-        ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  // Icon circle
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, color: color, size: 22),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            decoration: BoxDecoration(
+              color: color.withOpacity(isDoneToday ? 0.15 : 0.08),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.05),
+                width: 0.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+                if (isDoneToday)
+                  BoxShadow(
+                    color: color.withOpacity(0.1),
+                    blurRadius: 20,
+                    spreadRadius: 2,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          activity.name,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: color.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                          child: Text(
-                            typeLabel,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: color,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                // Glowing left border
+                Positioned(
+                  left: 0,
+                  top: 20,
+                  bottom: 20,
+                  child: Container(
+                    width: 3,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: const BorderRadius.horizontal(
+                        right: Radius.circular(4),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withOpacity(0.6),
+                          blurRadius: 8,
+                          spreadRadius: 1,
                         ),
                       ],
                     ),
                   ),
-                  // Progress ring + check button
-                  if (showCheckIn)
-                    _CheckInButton(
-                      activity: activity,
-                      isDone: isDoneToday,
-                      color: color,
-                      weeklyRate: weeklyRate,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              // Streak badge + mini week dots
-              Row(
-                children: [
-                  StreakBadge(result: streak, compact: true),
-                  const Spacer(),
-                  _WeekDots(weeklyRates: weeklyRates, color: color),
-                ],
-              ),
-            ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          // Icon circle with glass effect
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.12),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: color.withOpacity(0.2),
+                                width: 1,
+                              ),
+                            ),
+                            child: Icon(icon, color: color, size: 24),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  activity.name,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white.withOpacity(0.95),
+                                    letterSpacing: -0.3,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: color.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    typeLabel.toUpperCase(),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      color: color.withOpacity(0.8),
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (showCheckIn)
+                            _CheckInButton(
+                              activity: activity,
+                              isDone: isDoneToday,
+                              color: color,
+                              weeklyRate: weeklyRate,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          StreakBadge(result: streak, compact: true),
+                          const Spacer(),
+                          _WeekDots(weeklyRates: weeklyRates, color: color),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -188,20 +235,44 @@ class _CheckInButton extends ConsumerWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _handleTap(context, ref),
-      child: ProgressRing(
-        progress: isDone ? 1.0 : weeklyRate,
-        color: color,
-        size: 48,
-        strokeWidth: 4,
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: isDone
-              ? Icon(Icons.check_rounded,
-                  key: const ValueKey('done'), color: color, size: 20)
-              : Icon(Icons.radio_button_unchecked_rounded,
-                  key: const ValueKey('undone'),
-                  color: color.withOpacity(0.5),
-                  size: 18),
+      child: ScaleTransition(
+        scale: AlwaysStoppedAnimation(isDone ? 1.05 : 1.0),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.elasticOut,
+          child: ProgressRing(
+            progress: isDone ? 1.0 : weeklyRate,
+            color: color,
+            size: 52,
+            strokeWidth: 4,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDone ? color.withOpacity(0.2) : Colors.transparent,
+                boxShadow: isDone
+                    ? [
+                        BoxShadow(
+                          color: color.withOpacity(0.4),
+                          blurRadius: 12,
+                          spreadRadius: 2,
+                        )
+                      ]
+                    : [],
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                child: isDone
+                    ? Icon(Icons.check_rounded,
+                        key: const ValueKey('done'), color: color, size: 24)
+                    : Icon(Icons.add_rounded,
+                        key: const ValueKey('undone'),
+                        color: color.withOpacity(0.6),
+                        size: 20),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -257,24 +328,39 @@ class _WeekDots extends StatelessWidget {
       children: List.generate(7, (i) {
         final done = weeklyRates.length > i && weeklyRates[i] > 0;
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 3),
           child: Column(
             children: [
               AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 7,
-                height: 7,
+                duration: const Duration(milliseconds: 400),
+                width: 10,
+                height: 10,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: done ? color : color.withOpacity(0.15),
+                  color: done ? color : color.withOpacity(0.12),
+                  boxShadow: done
+                      ? [
+                          BoxShadow(
+                            color: color.withOpacity(0.6),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          )
+                        ]
+                      : [],
+                  border: Border.all(
+                    color: done ? Colors.white.withOpacity(0.2) : Colors.transparent,
+                    width: 1,
+                  ),
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 days[i],
-                style: TextStyle(
-                    fontSize: 7,
-                    color: done ? color : color.withOpacity(0.3)),
+                style: GoogleFonts.inter(
+                  fontSize: 8,
+                  fontWeight: done ? FontWeight.w800 : FontWeight.w500,
+                  color: done ? color : Colors.white.withOpacity(0.3),
+                ),
               ),
             ],
           ),

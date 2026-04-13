@@ -15,7 +15,7 @@ class PaceApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Pace',
       debugShowCheckedModeBanner: false,
-      themeMode: themeState.mode,
+      themeMode: ThemeMode.dark,
       theme: AppTheme.light(seedColor: themeState.seedColor),
       darkTheme: AppTheme.dark(seedColor: themeState.seedColor),
       routerConfig: appRouter,
