@@ -1,10 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../../../core/services/video_export_service.dart';
 import '../../../providers/activity_provider.dart';
 import '../../../providers/completion_provider.dart';
+import '../../../providers/ui_state_provider.dart';
 
 class MontageScreen extends ConsumerStatefulWidget {
   const MontageScreen({super.key, required this.activityId});
@@ -19,6 +23,7 @@ class _MontageScreenState extends ConsumerState<MontageScreen> {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
   bool _isPlaying = false;
+  int _fps = 1; // 1 = 1 second per image, 2 = 0.5 seconds per image
 
   void _togglePlay() {
     setState(() => _isPlaying = !_isPlaying);
@@ -27,9 +32,16 @@ class _MontageScreenState extends ConsumerState<MontageScreen> {
     }
   }
 
+  void _setSpeed(int fps) {
+    setState(() {
+      _fps = fps;
+      _isPlaying = false; // Reset when changing speed
+    });
+  }
+
   Future<void> _startSlideshow() async {
     while (_isPlaying && mounted) {
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(Duration(seconds: 1 ~/ _fps));
       if (!_isPlaying || !mounted) break;
       
       final completions = ref.read(completionsForActivityProvider(widget.activityId)).valueOrNull ?? [];
@@ -37,12 +49,85 @@ class _MontageScreenState extends ConsumerState<MontageScreen> {
       
       if (_currentIndex < photoCompletions.length - 1) {
         _pageController.nextPage(
-          duration: const Duration(milliseconds: 800),
+          duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOutCubic,
         );
       } else {
         setState(() => _isPlaying = false);
       }
+    }
+  }
+
+  Future<void> _exportVideo(List<String> imagePaths) async {
+    if (imagePaths.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No photos to export')),
+      );
+      return;
+    }
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Creating Video'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text('Processing ${imagePaths.length} photos at $speedLabel...',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final videoPath = await VideoExportService.createVideoMontage(
+        imagePaths: imagePaths,
+        fps: _fps,
+      );
+
+      if (mounted) Navigator.pop(context); // Close loading dialog
+
+      if (videoPath != null) {
+        // Share the video
+        await Share.shareXFiles(
+          [XFile(videoPath)],
+          text: 'Check out my montage!',
+        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to create video')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  String get speedLabel {
+    switch (_fps) {
+      case 1:
+        return '1 sec/photo';
+      case 2:
+        return '2x faster';
+      case 4:
+        return '4x faster';
+      default:
+        return '${_fps}x speed';
     }
   }
 
@@ -65,11 +150,44 @@ class _MontageScreenState extends ConsumerState<MontageScreen> {
         elevation: 0,
         leading: BackButton(color: Colors.white, onPressed: () => Navigator.pop(context)),
         actions: [
-          if (completionsAsync.hasValue)
+          if (completionsAsync.hasValue) ...[
+            // Speed dropdown
+            PopupMenuButton<int>(
+              onSelected: _setSpeed,
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 1, child: Text('1 sec/photo')),
+                const PopupMenuItem(value: 2, child: Text('2x faster (0.5s)')),
+                const PopupMenuItem(value: 4, child: Text('4x faster (0.25s)')),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Center(
+                  child: Text(
+                    speedLabel,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ),
+              ),
+            ),
+            // Play/Pause
             IconButton(
               icon: Icon(_isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white),
               onPressed: _togglePlay,
             ),
+            // Export
+            IconButton(
+              icon: const Icon(Icons.file_download_rounded, color: Colors.white),
+              onPressed: () {
+                final completions = completionsAsync.valueOrNull ?? [];
+                final photoCompletions = completions
+                    .where((c) => c.photoPath != null)
+                    .map((c) => c.photoPath!)
+                    .toList()
+                    ..sort();
+                _exportVideo(photoCompletions);
+              },
+            ),
+          ],
         ],
       ),
       body: completionsAsync.when(

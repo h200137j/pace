@@ -349,11 +349,13 @@ class _PhotoCheckIn extends ConsumerWidget {
     final notifier = ref.read(completionNotifierProvider.notifier);
     final dateKey = PaceDateUtils.todayKey();
 
+    ref.read(createSheetOpenProvider.notifier).state = true;
     final source = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _PhotoSourceSheet(color: Color(activity.colorValue)),
     );
+    ref.read(createSheetOpenProvider.notifier).state = false;
 
     if (source == null) return;
 
@@ -863,11 +865,13 @@ class _MonthCalendar extends ConsumerWidget {
     final notifier = ref.read(completionNotifierProvider.notifier);
     final dateKey = PaceDateUtils.toDateKey(date);
 
+    ref.read(createSheetOpenProvider.notifier).state = true;
     final source = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _PhotoSourceSheet(color: Color(activity.colorValue)),
     );
+    ref.read(createSheetOpenProvider.notifier).state = false;
 
     if (source == null) return;
 

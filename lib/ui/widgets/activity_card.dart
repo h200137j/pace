@@ -7,6 +7,7 @@ import '../../core/utils/date_utils.dart';
 import '../../data/models/activity.dart';
 import '../../providers/analytics_provider.dart';
 import '../../providers/completion_provider.dart';
+import '../../providers/ui_state_provider.dart';
 import 'progress_ring.dart';
 import 'streak_badge.dart';
 import '../../core/services/photo_service.dart';
@@ -207,11 +208,13 @@ class _CheckInButton extends ConsumerWidget {
 
     if (activity.requiresPhoto) {
       // Show picking options
+      ref.read(createSheetOpenProvider.notifier).state = true;
       final source = await showModalBottomSheet<bool>(
         context: context,
         backgroundColor: Colors.transparent,
         builder: (ctx) => _PhotoSourceSheet(color: color),
       );
+      ref.read(createSheetOpenProvider.notifier).state = false;
 
       if (source == null) return; // User cancelled
 
