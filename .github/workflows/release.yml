@@ -47,8 +47,15 @@ jobs:
 
       - name: Rename APK
         run: |
+          set -euo pipefail
           TAG_NAME=${GITHUB_REF_NAME:-manual}
-          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Pace-$TAG_NAME.apk
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/pace-$TAG_NAME.apk
+
+      - name: Verify APK output
+        run: |
+          set -euo pipefail
+          ls -la build/app/outputs/flutter-apk/
+          test -f build/app/outputs/flutter-apk/pace-${GITHUB_REF_NAME:-manual}.apk
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
