@@ -29,9 +29,9 @@ class UpdateService {
       final response = await http.get(Uri.parse('$_apiBase/releases/latest'));
       if (response.statusCode != 200) return null;
 
-      final data = json.decode(response.body);
+      final data = json.decode(response.body) as Map<String, dynamic>;
       final String latestTag = data['tag_name'];
-      final String changelog = data['body'] ?? 'No release notes provided.';
+      final String changelog = await _resolveReleaseNotes(data);
       
       // Find the APK in assets
       final List assets = data['assets'];
@@ -77,8 +77,6 @@ class UpdateService {
     final file = File('${tempDir.path}/update.apk');
     final sink = file.openWrite();
 
-    final Completer<void> completer = Completer<void>();
-
     await for (final chunk in response.stream) {
       sink.add(chunk);
       received += chunk.length;
@@ -89,6 +87,90 @@ class UpdateService {
 
     await sink.close();
     yield file;
+  }
+
+  static Future<String> _resolveReleaseNotes(
+    Map<String, dynamic> releaseData,
+  ) async {
+    final body = (releaseData['body'] ?? '').toString().trim();
+    if (body.isNotEmpty && body.toLowerCase() != 'null') {
+      return body;
+    }
+
+    final tagName = (releaseData['tag_name'] ?? '').toString();
+    final annotatedTagNotes = await _fetchAnnotatedTagMessage(tagName);
+    if (annotatedTagNotes != null) {
+      return annotatedTagNotes;
+    }
+
+    final tag = (releaseData['tag_name'] ?? '').toString();
+    final name = (releaseData['name'] ?? '').toString();
+    final publishedAt = (releaseData['published_at'] ?? '').toString();
+    final prerelease = releaseData['prerelease'] == true;
+    final assets = (releaseData['assets'] as List?) ?? const [];
+
+    final assetLines = assets
+        .map((asset) => '- ${(asset['name'] ?? '').toString()}')
+        .where((line) => line.trim().length > 2)
+        .toList();
+
+    final dateLabel = publishedAt.isEmpty
+        ? 'unknown date'
+        : publishedAt.split('T').first;
+
+    final fallback = StringBuffer()
+      ..writeln('## Update $tag')
+      ..writeln()
+      ..writeln('- Release: ${name.isEmpty ? tag : name}')
+      ..writeln('- Published: $dateLabel')
+      ..writeln('- Channel: ${prerelease ? 'Pre-release' : 'Stable'}')
+      ..writeln();
+
+    if (assetLines.isNotEmpty) {
+      fallback.writeln('### Included Assets');
+      fallback.writeln(assetLines.join('\n'));
+      fallback.writeln();
+    }
+
+    fallback.writeln(
+      'No release notes were provided for this version.\n'
+      'Tip: add notes in the GitHub Release description so this section shows full details.',
+    );
+
+    return fallback.toString().trim();
+  }
+
+  static Future<String?> _fetchAnnotatedTagMessage(String tagName) async {
+    if (tagName.trim().isEmpty) return null;
+
+    try {
+      final encodedTag = Uri.encodeComponent(tagName);
+      final refResponse = await http.get(
+        Uri.parse('$_apiBase/git/ref/tags/$encodedTag'),
+      );
+      if (refResponse.statusCode != 200) return null;
+
+      final refData = json.decode(refResponse.body) as Map<String, dynamic>;
+      final obj = refData['object'] as Map<String, dynamic>?;
+      if (obj == null) return null;
+
+      // Only annotated tags have a message payload.
+      if ((obj['type'] ?? '').toString() != 'tag') return null;
+      final tagSha = (obj['sha'] ?? '').toString();
+      if (tagSha.isEmpty) return null;
+
+      final tagResponse = await http.get(
+        Uri.parse('$_apiBase/git/tags/$tagSha'),
+      );
+      if (tagResponse.statusCode != 200) return null;
+
+      final tagData = json.decode(tagResponse.body) as Map<String, dynamic>;
+      final message = (tagData['message'] ?? '').toString().trim();
+      if (message.isEmpty) return null;
+      return message;
+    } catch (_) {
+      return null;
+    }
   }
 
   static bool _isNewer(String latest, String current) {

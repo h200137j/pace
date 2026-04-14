@@ -14,6 +14,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -52,12 +54,53 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Pace-Artifacts
-          path: build/app/outputs/flutter-apk/Pace-*.apk
+          path: build/app/outputs/flutter-apk/pace-*.apk
+
+      - name: Prepare Release Notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+
+          TAG_NAME="${GITHUB_REF_NAME}"
+          NOTES_DIR=".github/release-notes"
+          NOTES_FILE="${NOTES_DIR}/${TAG_NAME}.md"
+          OUT_FILE="release_notes.md"
+
+          mkdir -p "$NOTES_DIR"
+
+          # Priority 1: Explicit notes file for this tag.
+          if [[ -f "$NOTES_FILE" ]] && [[ -n "$(tr -d '[:space:]' < "$NOTES_FILE")" ]]; then
+            cp "$NOTES_FILE" "$OUT_FILE"
+            exit 0
+          fi
+
+          # Priority 2: Annotated tag message.
+          TAG_MESSAGE="$(git for-each-ref "refs/tags/${TAG_NAME}" --format='%(contents)')"
+          if [[ -n "$(printf '%s' "$TAG_MESSAGE" | tr -d '[:space:]')" ]]; then
+            printf '%s\n' "$TAG_MESSAGE" > "$OUT_FILE"
+            exit 0
+          fi
+
+          # Priority 3: Generated commit summary between previous tag and this tag.
+          PREV_TAG="$(git tag --sort=-creatordate | grep -Fxv "$TAG_NAME" | head -n1 || true)"
+
+          {
+            echo "## ${TAG_NAME}"
+            echo
+            echo "What's new:"
+            echo
+            if [[ -n "$PREV_TAG" ]]; then
+              git log --pretty='- %s' "${PREV_TAG}..${TAG_NAME}" | head -n 40
+            else
+              git log --pretty='- %s' -n 20
+            fi
+          } > "$OUT_FILE"
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/Pace-*.apk
+          files: build/app/outputs/flutter-apk/pace-*.apk
+          body_path: release_notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
