@@ -4,6 +4,7 @@ import 'package:android_intent_plus/android_intent.dart';
 import 'package:android_intent_plus/flag.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/services/update_service.dart';
@@ -56,21 +57,77 @@ class _UpdateSheetState extends State<UpdateSheet> {
 
   Future<void> _triggerInstall(String apkPath) async {
     try {
-      final intent = AndroidIntent(
-        action: 'android.intent.action.INSTALL_PACKAGE',
-        data: 'file://$apkPath',
+      final result = await OpenFilex.open(
+        apkPath,
         type: 'application/vnd.android.package-archive',
-        flags: <int>[Flag.FLAG_ACTIVITY_NEW_TASK, Flag.FLAG_GRANT_READ_URI_PERMISSION],
       );
-      await intent.launch();
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to open installer: $e')),
+
+      if (!mounted) return;
+
+      if (result.type == ResultType.done) {
+        Navigator.pop(context);
+      } else {
+        await _showInstallerFailureDialog(
+          result.message.isEmpty
+              ? 'Could not open installer.'
+              : result.message,
         );
         setState(() => _isDownloading = false);
       }
+    } catch (e) {
+      if (mounted) {
+        await _showInstallerFailureDialog('Failed to open installer: $e');
+        setState(() => _isDownloading = false);
+      }
+    }
+  }
+
+  Future<void> _showInstallerFailureDialog(String reason) async {
+    if (!mounted) return;
+
+    final shouldOpenSettings = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Installer Permission Required'),
+          content: Text(
+            'Android blocked opening the installer. Allow this app to install unknown apps, then try again.\n\nDetails: $reason',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Open settings'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldOpenSettings == true) {
+      await _openUnknownAppsSettings();
+    }
+  }
+
+  Future<void> _openUnknownAppsSettings() async {
+    if (!Platform.isAndroid || !mounted) return;
+
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final intent = AndroidIntent(
+        action: 'android.settings.MANAGE_UNKNOWN_APP_SOURCES',
+        data: 'package:${packageInfo.packageName}',
+        flags: <int>[Flag.FLAG_ACTIVITY_NEW_TASK],
+      );
+      await intent.launch();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open settings: $e')),
+      );
     }
   }
 
