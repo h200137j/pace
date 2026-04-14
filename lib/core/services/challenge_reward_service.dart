@@ -1,4 +1,5 @@
 import '../constants/xp_config.dart';
+import 'challenge_easter_egg_service.dart';
 import '../utils/date_utils.dart';
 import '../../data/models/activity.dart';
 
@@ -59,16 +60,24 @@ class ChallengeRewardProgress {
     required this.challengeXp,
     required this.badgesUnlocked,
     required this.trophiesUnlocked,
+    required this.easterEggsUnlocked,
+    required this.easterEggsTarget,
     required this.unlockedBadgeTitles,
     required this.unlockedTrophyTitles,
+    required this.unlockedEasterEggTitles,
+    required this.easterEggMetaTrophyUnlocked,
   });
 
   final ChallengeRewardProfile profile;
   final int challengeXp;
   final int badgesUnlocked;
   final int trophiesUnlocked;
+  final int easterEggsUnlocked;
+  final int easterEggsTarget;
   final List<String> unlockedBadgeTitles;
   final List<String> unlockedTrophyTitles;
+  final List<String> unlockedEasterEggTitles;
+  final bool easterEggMetaTrophyUnlocked;
 }
 
 class ChallengeRewardService {
@@ -137,6 +146,7 @@ class ChallengeRewardService {
     required int currentStreak,
     required int longestStreak,
     required int challengeXp,
+    Set<String> completionDateKeys = const {},
   }) {
     final profile = buildProfile(
       activity: activity,
@@ -182,13 +192,26 @@ class ChallengeRewardService {
       }
     }
 
+    final easterEggProgress = EliteChallengeEasterEggService.evaluate(
+      activity: activity,
+      completionDateKeys: completionDateKeys,
+    );
+
+    if (easterEggProgress.metaTrophyUnlocked) {
+      unlockedTrophyTitles.add(EliteChallengeEasterEggService.metaTrophyTitle);
+    }
+
     return ChallengeRewardProgress(
       profile: profile,
       challengeXp: challengeXp,
       badgesUnlocked: badgeCount,
       trophiesUnlocked: unlockedTrophyTitles.length,
+      easterEggsUnlocked: easterEggProgress.unlockedCount,
+      easterEggsTarget: easterEggProgress.targetCount,
       unlockedBadgeTitles: unlockedBadgeTitles,
       unlockedTrophyTitles: unlockedTrophyTitles,
+      unlockedEasterEggTitles: easterEggProgress.unlockedTitles,
+      easterEggMetaTrophyUnlocked: easterEggProgress.metaTrophyUnlocked,
     );
   }
 

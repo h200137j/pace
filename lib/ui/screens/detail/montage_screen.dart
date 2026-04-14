@@ -1,11 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../providers/activity_provider.dart';
 import '../../../providers/completion_provider.dart';
-import '../../../providers/ui_state_provider.dart';
 
 class MontageScreen extends ConsumerStatefulWidget {
   const MontageScreen({super.key, required this.activityId});

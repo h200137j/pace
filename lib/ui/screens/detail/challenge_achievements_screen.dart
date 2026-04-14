@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/services/challenge_easter_egg_service.dart';
 import '../../../core/services/challenge_reward_service.dart';
 import '../../../data/models/activity.dart';
 import '../../../providers/activity_provider.dart';
@@ -40,6 +41,7 @@ class ChallengeAchievementsScreen extends ConsumerWidget {
         final completions =
             ref.watch(completionsForActivityProvider(activity.id)).valueOrNull ??
                 const [];
+        final completionDateKeys = completions.map((c) => c.dateKey).toSet();
         final photoCompletions =
             completions.where((completion) => completion.photoPath != null).length;
 
@@ -50,6 +52,7 @@ class ChallengeAchievementsScreen extends ConsumerWidget {
           currentStreak: streak.current,
           longestStreak: streak.longest,
           challengeXp: challengeXp,
+          completionDateKeys: completionDateKeys,
         );
 
         final badgeRows = rewardProgress.profile.badges
@@ -110,7 +113,18 @@ class ChallengeAchievementsScreen extends ConsumerWidget {
                 totalBadges: rewardProgress.profile.badges.length,
                 trophiesUnlocked: rewardProgress.trophiesUnlocked,
                 totalTrophies: rewardProgress.profile.trophies.length,
+                easterEggsUnlocked: rewardProgress.easterEggsUnlocked,
+                totalEasterEggs: rewardProgress.easterEggsTarget,
               ),
+              if (rewardProgress.easterEggsTarget > 0)
+                _SettingsLikeAction(
+                  icon: Icons.egg_alt_rounded,
+                  title: 'Easter Egg Gallery',
+                  subtitle: rewardProgress.easterEggMetaTrophyUnlocked
+                      ? 'Meta trophy unlocked: ${EliteChallengeEasterEggService.metaTrophyTitle}'
+                      : 'Track all 12 monthly secret eggs',
+                  onTap: () => context.push('/activity/${activity.id}/easter-eggs'),
+                ),
               const SizedBox(height: 16),
               _SectionHeader(
                 title: 'Challenge Badges',
@@ -235,6 +249,8 @@ class _OverviewCard extends StatelessWidget {
     required this.totalBadges,
     required this.trophiesUnlocked,
     required this.totalTrophies,
+    required this.easterEggsUnlocked,
+    required this.totalEasterEggs,
   });
 
   final Color color;
@@ -242,6 +258,8 @@ class _OverviewCard extends StatelessWidget {
   final int totalBadges;
   final int trophiesUnlocked;
   final int totalTrophies;
+  final int easterEggsUnlocked;
+  final int totalEasterEggs;
 
   @override
   Widget build(BuildContext context) {
@@ -267,8 +285,55 @@ class _OverviewCard extends StatelessWidget {
               value: '$trophiesUnlocked/$totalTrophies',
             ),
           ),
+          if (totalEasterEggs > 0) ...[
+            const SizedBox(width: 12),
+            Expanded(
+              child: _OverviewStat(
+                label: 'Eggs',
+                value: '$easterEggsUnlocked/$totalEasterEggs',
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _SettingsLikeAction extends StatelessWidget {
+  const _SettingsLikeAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: theme.colorScheme.primary, size: 20),
+      ),
+      title: Text(
+        title,
+        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: onTap,
     );
   }
 }

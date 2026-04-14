@@ -8,6 +8,7 @@ import 'providers/ui_state_provider.dart';
 import 'ui/screens/analytics/analytics_screen.dart';
 import 'ui/screens/detail/activity_detail_screen.dart';
 import 'ui/screens/detail/challenge_achievements_screen.dart';
+import 'ui/screens/detail/challenge_easter_eggs_screen.dart';
 import 'ui/screens/detail/montage_screen.dart';
 import 'ui/screens/gamification/badges_screen.dart';
 import 'ui/screens/gamification/trophies_screen.dart';
@@ -46,6 +47,12 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'achievements',
                   builder: (_, state) => ChallengeAchievementsScreen(
+                    activityId: int.parse(state.pathParameters['id']!),
+                  ),
+                ),
+                GoRoute(
+                  path: 'easter-eggs',
+                  builder: (_, state) => ChallengeEasterEggsScreen(
                     activityId: int.parse(state.pathParameters['id']!),
                   ),
                 ),

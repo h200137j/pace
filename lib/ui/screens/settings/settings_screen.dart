@@ -12,6 +12,7 @@ import '../../../providers/completion_provider.dart';
 import '../../../providers/gamification_settings_provider.dart';
 import '../../../providers/gamification_provider.dart';
 import '../../../providers/theme_provider.dart';
+import '../../widgets/app_snackbar.dart';
 
 final appInfoProvider = FutureProvider<PackageInfo>((ref) async {
   return PackageInfo.fromPlatform();
@@ -123,9 +124,7 @@ class SettingsScreen extends ConsumerWidget {
                     await export.exportJson();
                   } catch (e) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Export failed: $e')),
-                      );
+                      showAppSnackBar(context, 'Export failed: $e');
                     }
                   }
                 },
@@ -139,16 +138,11 @@ class SettingsScreen extends ConsumerWidget {
                   try {
                     await export.importJson();
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Data imported successfully ✓')),
-                      );
+                      showAppSnackBar(context, 'Data imported successfully ✓');
                     }
                   } catch (e) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Import failed: $e')),
-                      );
+                      showAppSnackBar(context, 'Import failed: $e');
                     }
                   }
                 },
@@ -180,6 +174,13 @@ class SettingsScreen extends ConsumerWidget {
                 onChanged: gmSettingsNotifier.setEnableRewardAnimations,
                 title: const Text('Enable Reward Animations'),
                 subtitle: const Text('Use richer unlock celebration effects'),
+              ),
+              SwitchListTile(
+                value: gmSettings.showEasterEggHints,
+                onChanged: gmSettingsNotifier.setShowEasterEggHints,
+                title: const Text('Show Easter Egg Radar Hints'),
+                subtitle:
+                    const Text('Reveal subtle monthly clues after day 20 for elite challenges'),
               ),
 
               const Divider(height: 32),

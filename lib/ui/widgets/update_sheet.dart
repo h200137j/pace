@@ -8,6 +8,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/services/update_service.dart';
+import 'app_snackbar.dart';
 
 class UpdateSheet extends StatefulWidget {
   const UpdateSheet({super.key, required this.updateInfo});
@@ -47,9 +48,7 @@ class _UpdateSheetState extends State<UpdateSheet> {
       }
     }, onError: (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Download failed: $e')),
-        );
+        showAppSnackBar(context, 'Download failed: $e');
         setState(() => _isDownloading = false);
       }
     });
@@ -125,9 +124,7 @@ class _UpdateSheetState extends State<UpdateSheet> {
       await intent.launch();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open settings: $e')),
-      );
+      showAppSnackBar(context, 'Could not open settings: $e');
     }
   }
 

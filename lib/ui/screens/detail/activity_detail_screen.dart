@@ -6,8 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/services/challenge_easter_egg_service.dart';
+import '../../../core/services/motivational_quote_service.dart';
 import '../../../core/utils/date_utils.dart';
-import '../../../core/services/gamification_service.dart';
 import '../../../core/services/challenge_reward_service.dart';
 import '../../../core/utils/streak_calculator.dart';
 import '../../../data/models/activity.dart';
@@ -19,6 +20,7 @@ import '../../../providers/gamification_settings_provider.dart';
 import '../../../providers/ui_state_provider.dart';
 import '../../../core/services/photo_service.dart';
 import '../../widgets/contribution_grid.dart';
+import '../../widgets/day_completion_toast.dart';
 import '../create/create_activity_sheet.dart';
 
 class ActivityDetailScreen extends ConsumerWidget {
@@ -54,6 +56,7 @@ class _DetailBody extends ConsumerStatefulWidget {
 
 class _DetailBodyState extends ConsumerState<_DetailBody> {
   String? _summaryMarker;
+  String? _eggCelebrationMarker;
 
   Activity get activity => widget.activity;
 
@@ -131,6 +134,11 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   label: 'Trophies',
                   value: '${progress.trophiesUnlocked}/${progress.profile.trophies.length}',
                 ),
+                if (progress.easterEggsTarget > 0)
+                  _SummaryStatRow(
+                    label: 'Easter Eggs',
+                    value: '${progress.easterEggsUnlocked}/${progress.easterEggsTarget}',
+                  ),
                 const SizedBox(height: 12),
                 Text(
                   badgePreview.isEmpty
@@ -145,6 +153,15 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                       : 'Trophies: $trophyPreview',
                   style: theme.textTheme.bodySmall,
                 ),
+                if (progress.easterEggsTarget > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    progress.unlockedEasterEggTitles.isEmpty
+                        ? 'No easter eggs found yet.'
+                        : 'Easter Eggs: ${progress.unlockedEasterEggTitles.take(4).join(' • ')}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
               ],
             ),
           ),
@@ -152,6 +169,81 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Done'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _maybeShowEasterEggMetaCelebration(
+    BuildContext context,
+    ChallengeRewardProgress progress,
+  ) async {
+    if (!progress.easterEggMetaTrophyUnlocked) return;
+
+    final marker =
+        '${activity.id}:${progress.easterEggsUnlocked}:${progress.easterEggsTarget}';
+    if (_eggCelebrationMarker == marker) return;
+    _eggCelebrationMarker = marker;
+
+    final prefs = await SharedPreferences.getInstance();
+    final prefKey = 'challenge_egg_meta_shown_${activity.id}';
+    if (prefs.getBool(prefKey) ?? false) return;
+    await prefs.setBool(prefKey, true);
+
+    final quote = await MotivationalQuoteService.getCelebrationQuote();
+    if (!context.mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final accent = Color(activity.colorValue);
+
+        return AlertDialog(
+          title: const Text('Meta Trophy Unlocked'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.75, end: 1.0),
+                duration: const Duration(milliseconds: 700),
+                curve: Curves.elasticOut,
+                builder: (context, value, child) {
+                  return Transform.scale(scale: value, child: child);
+                },
+                child: Icon(
+                  Icons.emoji_events_rounded,
+                  color: accent,
+                  size: 56,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                EliteChallengeEasterEggService.metaTrophyTitle,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'All 12 monthly easter eggs discovered.',
+                style: theme.textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                quote,
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Legendary'),
             ),
           ],
         );
@@ -191,6 +283,10 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     final completionsAsync =
         ref.watch(completionsForActivityProvider(activity.id));
     final completions = completionsAsync.valueOrNull ?? const [];
+    final dateKeys = completionsAsync.valueOrNull
+        ?.map((c) => c.dateKey)
+        .toSet() ??
+      {};
     final photoCompletions =
       completions.where((completion) => completion.photoPath != null).length;
 
@@ -201,17 +297,21 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
       currentStreak: streak.current,
       longestStreak: streak.longest,
       challengeXp: challengeXp,
+      completionDateKeys: dateKeys,
     );
-
-    final dateKeys = completionsAsync.valueOrNull
-            ?.map((c) => c.dateKey)
-            .toSet() ??
-        {};
+    final gmSettings = ref.watch(gamificationSettingsProvider);
+    final eggHint = gmSettings.showEasterEggHints
+        ? EliteChallengeEasterEggService.monthlyHint(
+            activity: activity,
+            completionDateKeys: dateKeys,
+          )
+        : null;
 
     if (activity.type == ActivityType.challenge) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted) return;
         _maybeShowChallengeSummary(context, challengeProgress);
+        _maybeShowEasterEggMetaCelebration(context, challengeProgress);
       });
     }
 
@@ -305,8 +405,12 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               child: _ChallengeProgressCard(
                 color: color,
                 progress: challengeProgress,
+                radarHint: eggHint?.eggAlreadyFound == false ? eggHint?.message : null,
                 onViewAchievements: activity.type == ActivityType.challenge
                     ? () => context.push('/activity/${activity.id}/achievements')
+                    : null,
+                onViewEasterEggs: challengeProgress.easterEggsTarget > 0
+                    ? () => context.push('/activity/${activity.id}/easter-eggs')
                     : null,
               ),
             ),
@@ -453,35 +557,6 @@ class _PhotoCheckIn extends ConsumerWidget {
   const _PhotoCheckIn({required this.activity});
   final Activity activity;
 
-  void _showRewardToast(
-    BuildContext context,
-    WidgetRef ref,
-    XpAwardOutcome outcome,
-  ) {
-    final settings = ref.read(gamificationSettingsProvider);
-    if (!settings.showRewardToasts || outcome.awardedXp <= 0) return;
-
-    final unlockParts = <String>[];
-    if (outcome.unlockedBadgeKeys.isNotEmpty) {
-      unlockParts.add('${outcome.unlockedBadgeKeys.length} badge');
-    }
-    if (outcome.unlockedTrophyKeys.isNotEmpty) {
-      unlockParts.add('${outcome.unlockedTrophyKeys.length} trophy');
-    }
-    final unlockText =
-        unlockParts.isEmpty ? '' : ' • Unlocked ${unlockParts.join(', ')}';
-    final prefix = settings.enableRewardAnimations && unlockParts.isNotEmpty
-      ? '✨ '
-      : '';
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(milliseconds: 1800),
-        content: Text('$prefix+${outcome.awardedXp} XP$unlockText'),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -564,7 +639,13 @@ class _PhotoCheckIn extends ConsumerWidget {
     final result =
         await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
     if (!context.mounted || result == null) return;
-    _showRewardToast(context, ref, result);
+    await showDayCompletionToast(
+      context,
+      ref,
+      result,
+      activity: activity,
+      dateKey: dateKey,
+    );
   }
 }
 
@@ -655,12 +736,16 @@ class _ChallengeProgressCard extends StatelessWidget {
   const _ChallengeProgressCard({
     required this.color,
     required this.progress,
+    this.radarHint,
     this.onViewAchievements,
+    this.onViewEasterEggs,
   });
 
   final Color color;
   final ChallengeRewardProgress progress;
+  final String? radarHint;
   final VoidCallback? onViewAchievements;
+  final VoidCallback? onViewEasterEggs;
 
   @override
   Widget build(BuildContext context) {
@@ -668,6 +753,7 @@ class _ChallengeProgressCard extends StatelessWidget {
 
     final badgePreview = progress.unlockedBadgeTitles.take(4).join(' • ');
     final trophyPreview = progress.unlockedTrophyTitles.take(3).join(' • ');
+    final eggPreview = progress.unlockedEasterEggTitles.take(3).join(' • ');
     final profile = progress.profile;
 
     return Container(
@@ -717,6 +803,14 @@ class _ChallengeProgressCard extends StatelessWidget {
                 value: '${progress.trophiesUnlocked}/${profile.trophies.length}',
                 color: color,
               ),
+              if (progress.easterEggsTarget > 0) ...[
+                const SizedBox(width: 10),
+                _MiniStat(
+                  label: 'Eggs',
+                  value: '${progress.easterEggsUnlocked}/${progress.easterEggsTarget}',
+                  color: color,
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -733,6 +827,25 @@ class _ChallengeProgressCard extends StatelessWidget {
                 : 'Recent trophies: $trophyPreview',
             style: theme.textTheme.bodySmall,
           ),
+          if (progress.easterEggsTarget > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              eggPreview.isEmpty
+                  ? 'Easter Eggs: Find each month\'s secret completion day.'
+                  : 'Recent eggs: $eggPreview',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+          if (radarHint != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              radarHint!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.tealAccent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           if (onViewAchievements != null) ...[
             const SizedBox(height: 12),
             SizedBox(
@@ -741,6 +854,17 @@ class _ChallengeProgressCard extends StatelessWidget {
                 onPressed: onViewAchievements,
                 icon: const Icon(Icons.workspace_premium_rounded),
                 label: const Text('View Challenge Achievements'),
+              ),
+            ),
+          ],
+          if (onViewEasterEggs != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onViewEasterEggs,
+                icon: const Icon(Icons.egg_alt_rounded),
+                label: const Text('View Easter Egg Gallery'),
               ),
             ),
           ],
@@ -1175,35 +1299,6 @@ class _MonthCalendar extends ConsumerWidget {
   final Color color;
   final DateTime month;
 
-  void _showRewardToast(
-    BuildContext context,
-    WidgetRef ref,
-    XpAwardOutcome outcome,
-  ) {
-    final settings = ref.read(gamificationSettingsProvider);
-    if (!settings.showRewardToasts || outcome.awardedXp <= 0) return;
-
-    final unlockParts = <String>[];
-    if (outcome.unlockedBadgeKeys.isNotEmpty) {
-      unlockParts.add('${outcome.unlockedBadgeKeys.length} badge');
-    }
-    if (outcome.unlockedTrophyKeys.isNotEmpty) {
-      unlockParts.add('${outcome.unlockedTrophyKeys.length} trophy');
-    }
-    final unlockText =
-        unlockParts.isEmpty ? '' : ' • Unlocked ${unlockParts.join(', ')}';
-    final prefix = settings.enableRewardAnimations && unlockParts.isNotEmpty
-      ? '✨ '
-      : '';
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(milliseconds: 1800),
-        content: Text('$prefix+${outcome.awardedXp} XP$unlockText'),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -1242,16 +1337,22 @@ class _MonthCalendar extends ConsumerWidget {
             final notifier = ref.read(completionNotifierProvider.notifier);
             
             if (!done) {
-               if (activity.requiresPhoto) {
-                 // Trigger photo picker for strict requirement
-                 await _triggerPicker(ctx, ref, date);
-               } else {
-                 final result = await notifier.toggle(activity.id, key);
-                 if (!ctx.mounted || result == null) return;
-                 _showRewardToast(ctx, ref, result);
-               }
+              if (activity.requiresPhoto) {
+                // Trigger photo picker for strict requirement
+                await _triggerPicker(ctx, ref, date);
+              } else {
+                final result = await notifier.toggle(activity.id, key);
+                if (!ctx.mounted || result == null) return;
+                await showDayCompletionToast(
+                  ctx,
+                  ref,
+                  result,
+                  activity: activity,
+                  dateKey: key,
+                );
+              }
             } else {
-               await notifier.toggle(activity.id, key);
+              await notifier.toggle(activity.id, key);
             }
           },
           borderRadius: BorderRadius.circular(100),
@@ -1325,6 +1426,12 @@ class _MonthCalendar extends ConsumerWidget {
     final result =
         await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
     if (!context.mounted || result == null) return;
-    _showRewardToast(context, ref, result);
+    await showDayCompletionToast(
+      context,
+      ref,
+      result,
+      activity: activity,
+      dateKey: dateKey,
+    );
   }
 }
