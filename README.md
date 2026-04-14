@@ -98,6 +98,24 @@ Your data is yours. Always.
 - **Import JSON** — restore from any previous backup
 - **Export CSV** — open your history in Excel, Google Sheets, or any tool you like
 
+Backup format notes:
+- JSON export `version: 2` includes gamification blocks (`gamificationProfile`, `badgeUnlocks`, `trophyUnlocks`, `xpEvents`)
+- Activity export now includes `difficulty`
+- Import remains backward compatible with older backups and rebuilds gamification state when needed
+
+---
+
+### 🏅 Gamification System
+Pace now includes an offline-first progression layer:
+
+- **Difficulty Levels** per activity: `Easy`, `Medium`, `Hard`, `Elite`
+- **XP Awards** on completion with difficulty multipliers and photo bonus
+- **Level Progression** shown on Home with XP-to-next-level progress
+- **Achievement Badges** with tracked progress and unlock dates
+- **Trophies** for larger milestones built on badge/meta progression
+
+All gamification state is persisted in Isar and exported/imported with backups.
+
 ---
 
 ### 🎨 Material 3 Design
@@ -133,6 +151,8 @@ Pace follows a strict separation of concerns across three layers:
 ├── ⚡ providers/               # Riverpod state management
 │   ├── activity_provider.dart
 │   ├── completion_provider.dart
+│   ├── gamification_provider.dart
+│   ├── gamification_settings_provider.dart
 │   ├── analytics_provider.dart
 │   └── theme_provider.dart
 │

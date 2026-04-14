@@ -7,6 +7,7 @@ import '../../core/utils/date_utils.dart';
 import '../../data/models/activity.dart';
 import '../../providers/analytics_provider.dart';
 import '../../providers/completion_provider.dart';
+import '../../providers/gamification_settings_provider.dart';
 import '../../providers/ui_state_provider.dart';
 import 'progress_ring.dart';
 import 'streak_badge.dart';
@@ -26,7 +27,6 @@ class ActivityCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final color = Color(activity.colorValue);
     final icon = IconData(activity.iconCodePoint, fontFamily: 'MaterialIcons');
 
@@ -196,6 +196,32 @@ class _CheckInButton extends ConsumerWidget {
   final Color color;
   final double weeklyRate;
 
+  void _showRewardToast(
+    BuildContext context,
+    WidgetRef ref,
+    int xp,
+    int badgeCount,
+    int trophyCount,
+  ) {
+    final settings = ref.read(gamificationSettingsProvider);
+    if (!settings.showRewardToasts || xp <= 0) return;
+
+    final unlockParts = <String>[];
+    if (badgeCount > 0) unlockParts.add('$badgeCount badge');
+    if (trophyCount > 0) unlockParts.add('$trophyCount trophy');
+    final unlockText = unlockParts.isEmpty ? '' : ' • Unlocked ${unlockParts.join(', ')}';
+    final prefix = settings.enableRewardAnimations && unlockParts.isNotEmpty
+      ? '✨ '
+      : '';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(milliseconds: 1800),
+        content: Text('$prefix+$xp XP$unlockText'),
+      ),
+    );
+  }
+
   Future<void> _handleTap(BuildContext context, WidgetRef ref) async {
     final notifier = ref.read(completionNotifierProvider.notifier);
     final dateKey = PaceDateUtils.todayKey();
@@ -227,9 +253,26 @@ class _CheckInButton extends ConsumerWidget {
         activity.id,
       );
 
-      await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+      final result =
+          await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+      if (!context.mounted || result == null) return;
+      _showRewardToast(
+        context,
+        ref,
+        result.awardedXp,
+        result.unlockedBadgeKeys.length,
+        result.unlockedTrophyKeys.length,
+      );
     } else {
-      await notifier.toggle(activity.id, dateKey);
+      final result = await notifier.toggle(activity.id, dateKey);
+      if (!context.mounted || result == null) return;
+      _showRewardToast(
+        context,
+        ref,
+        result.awardedXp,
+        result.unlockedBadgeKeys.length,
+        result.unlockedTrophyKeys.length,
+      );
     }
   }
 

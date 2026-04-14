@@ -2,7 +2,11 @@ import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/activity.dart';
+import '../models/badge_unlock.dart';
 import '../models/completion.dart';
+import '../models/gamification_profile.dart';
+import '../models/trophy_unlock.dart';
+import '../models/xp_event.dart';
 
 /// Singleton that holds the open Isar database instance.
 class IsarService {
@@ -22,7 +26,14 @@ class IsarService {
     if (_isar != null && _isar!.isOpen) return;
     final dir = await getApplicationDocumentsDirectory();
     _isar = await Isar.open(
-      [ActivitySchema, CompletionSchema],
+      [
+        ActivitySchema,
+        CompletionSchema,
+        GamificationProfileSchema,
+        BadgeUnlockSchema,
+        TrophyUnlockSchema,
+        XpEventSchema,
+      ],
       directory: dir.path,
       name: 'pace_db',
     );

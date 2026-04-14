@@ -45,9 +45,11 @@ app.*.map.json
 /android/app/release
 
 # Android Signing
-# android/key.properties
-# android/*.jks
-# android/*.keystore
-# !android/debug.keystore
+android/key.properties
+android/*.jks
+android/*.keystore
+!android/debug.keystore
 keystore_base64.txt
-
+FEATURE_IDEAS.md
+GAMIFICATION_IMPLEMENTATION_PLAN.md
+CHALLENGE_DURATION_GAMIFICATION_PLAN.md

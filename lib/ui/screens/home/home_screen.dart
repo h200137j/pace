@@ -1,4 +1,5 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,11 +7,13 @@ import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../providers/activity_provider.dart';
+import '../../../providers/gamification_provider.dart';
 import '../../../providers/ui_state_provider.dart';
 import '../../../core/services/update_service.dart';
 import '../../widgets/activity_card.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/update_sheet.dart';
+import '../../widgets/xp_level_card.dart';
 import '../create/create_activity_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -43,6 +46,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final activitiesAsync = ref.watch(activitiesProvider);
+    final profileAsync = ref.watch(gamificationProfileProvider);
     final now = DateTime.now();
     final greeting = _greeting(now.hour);
     final dateLabel = DateFormat('EEE, MMM d').format(now);
@@ -148,16 +152,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                   return ListView.builder(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
-                    itemCount: activities.length + 1,
+                    itemCount: activities.length + 2,
                     itemBuilder: (ctx, i) {
                       if (i == 0) {
+                        final profile = profileAsync.valueOrNull;
+                        if (profile == null) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: XpLevelCard(
+                            profile: profile,
+                            accentColor: _accentColor,
+                          ),
+                        );
+                      }
+                      if (i == 1) {
                         return _SectionHeader(
                           label: "Today's Activities",
                           count: activities.length,
                           accentColor: _accentColor,
                         );
                       }
-                      final activity = activities[i - 1];
+                      final activity = activities[i - 2];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 16),
                         child: ActivityCard(

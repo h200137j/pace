@@ -4,13 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/utils/date_utils.dart';
+import '../../../core/services/gamification_service.dart';
+import '../../../core/services/challenge_reward_service.dart';
 import '../../../core/utils/streak_calculator.dart';
 import '../../../data/models/activity.dart';
 import '../../../providers/activity_provider.dart';
 import '../../../providers/analytics_provider.dart';
 import '../../../providers/completion_provider.dart';
+import '../../../providers/gamification_provider.dart';
+import '../../../providers/gamification_settings_provider.dart';
 import '../../../providers/ui_state_provider.dart';
 import '../../../core/services/photo_service.dart';
 import '../../widgets/contribution_grid.dart';
@@ -38,25 +43,177 @@ class ActivityDetailScreen extends ConsumerWidget {
   }
 }
 
-class _DetailBody extends ConsumerWidget {
+class _DetailBody extends ConsumerStatefulWidget {
   const _DetailBody({required this.activity});
 
   final Activity activity;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DetailBody> createState() => _DetailBodyState();
+}
+
+class _DetailBodyState extends ConsumerState<_DetailBody> {
+  String? _summaryMarker;
+
+  Activity get activity => widget.activity;
+
+  Future<void> _maybeShowChallengeSummary(
+    BuildContext context,
+    ChallengeRewardProgress progress,
+  ) async {
+    if (activity.type != ActivityType.challenge) return;
+
+    final today = PaceDateUtils.toDateOnly(DateTime.now());
+    final endDate = progress.profile.endDate;
+    final finishedByDate = !today.isBefore(endDate);
+    final finishedByProgress = progress.profile.completionRatePercent >= 100;
+
+    if (!finishedByDate && !finishedByProgress) return;
+
+    final marker = '${activity.id}:${PaceDateUtils.toDateKey(endDate)}';
+    if (_summaryMarker == marker) return;
+    _summaryMarker = marker;
+
+    final prefs = await SharedPreferences.getInstance();
+    final prefKey = 'challenge_summary_shown_$marker';
+    if (prefs.getBool(prefKey) ?? false) return;
+    await prefs.setBool(prefKey, true);
+
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final rank = _challengeRank(progress);
+        final badgePreview = progress.unlockedBadgeTitles.take(5).join(' • ');
+        final trophyPreview = progress.unlockedTrophyTitles.take(4).join(' • ');
+
+        return AlertDialog(
+          title: const Text('Challenge Complete'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  rank,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _SummaryStatRow(
+                  label: 'Window',
+                  value:
+                      '${DateFormat('MMM d, yyyy').format(progress.profile.startDate)} → ${DateFormat('MMM d, yyyy').format(progress.profile.endDate)}',
+                ),
+                _SummaryStatRow(
+                  label: 'Duration',
+                  value: '${progress.profile.durationDays} days',
+                ),
+                _SummaryStatRow(
+                  label: 'Completion',
+                  value: '${progress.profile.completionRatePercent}% of required days',
+                ),
+                _SummaryStatRow(
+                  label: 'XP Earned',
+                  value: '${progress.challengeXp} XP',
+                ),
+                _SummaryStatRow(
+                  label: 'Length Bonus',
+                  value: 'x${progress.profile.lengthMultiplier.toStringAsFixed(2)}',
+                ),
+                _SummaryStatRow(
+                  label: 'Badges',
+                  value: '${progress.badgesUnlocked}/${progress.profile.badges.length}',
+                ),
+                _SummaryStatRow(
+                  label: 'Trophies',
+                  value: '${progress.trophiesUnlocked}/${progress.profile.trophies.length}',
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  badgePreview.isEmpty
+                      ? 'No challenge badges unlocked.'
+                      : 'Badges: $badgePreview',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  trophyPreview.isEmpty
+                      ? 'No challenge trophies unlocked.'
+                      : 'Trophies: $trophyPreview',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _challengeRank(ChallengeRewardProgress progress) {
+    final duration = progress.profile.durationDays;
+    final completion = progress.profile.completionRatePercent;
+
+    if (completion >= 100) {
+      if (duration >= 365) return 'Legendary Marathon';
+      if (duration >= 180) return 'Endurance Champion';
+      if (duration >= 90) return 'Season Complete';
+      if (duration >= 30) return 'Challenge Complete';
+      return 'Sprint Complete';
+    }
+
+    if (completion >= 95) return 'Near Perfect Finish';
+    if (completion >= 85) return 'Strong Finish';
+    if (completion >= 70) return 'Steady Finish';
+    if (completion >= 50) return 'Solid Run';
+    return 'Challenge in Progress';
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = Color(activity.colorValue);
     final icon = IconData(activity.iconCodePoint, fontFamily: 'MaterialIcons');
 
+    final ref = this.ref;
     final streak = ref.watch(streakProvider(activity.id));
+    final challengeXp = ref.watch(challengeXpProvider(activity.id));
     // For heatmap & calendar
     final completionsAsync =
         ref.watch(completionsForActivityProvider(activity.id));
+    final completions = completionsAsync.valueOrNull ?? const [];
+    final photoCompletions =
+      completions.where((completion) => completion.photoPath != null).length;
+
+    final challengeProgress = ChallengeRewardService.evaluate(
+      activity: activity,
+      completionCount: streak.totalCompletions,
+      photoCompletionCount: photoCompletions,
+      currentStreak: streak.current,
+      longestStreak: streak.longest,
+      challengeXp: challengeXp,
+    );
+
     final dateKeys = completionsAsync.valueOrNull
             ?.map((c) => c.dateKey)
             .toSet() ??
         {};
+
+    if (activity.type == ActivityType.challenge) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        _maybeShowChallengeSummary(context, challengeProgress);
+      });
+    }
 
     return Scaffold(
       body: CustomScrollView(
@@ -142,6 +299,19 @@ class _DetailBody extends ConsumerWidget {
             ),
           ),
 
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: _ChallengeProgressCard(
+                color: color,
+                progress: challengeProgress,
+                onViewAchievements: activity.type == ActivityType.challenge
+                    ? () => context.push('/activity/${activity.id}/achievements')
+                    : null,
+              ),
+            ),
+          ),
+
           // ── Montage & Check-in ──────────────────────────────────────────
           if (activity.requiresPhoto)
             _PhotoCheckIn(activity: activity),
@@ -201,14 +371,8 @@ class _DetailBody extends ConsumerWidget {
           SliverList(
             delegate: SliverChildBuilderDelegate(
               (context, index) {
-                // Generate months backwards from today
-                final monthDate = DateTime(
-                  DateTime.now().year,
-                  DateTime.now().month - index,
-                  1,
-                );
-                
-                // Limit to 12 months for "the year"
+                final monthDate = DateTime(DateTime.now().year, index + 1, 1);
+
                 if (index >= 12) return null;
 
                 return Padding(
@@ -289,6 +453,35 @@ class _PhotoCheckIn extends ConsumerWidget {
   const _PhotoCheckIn({required this.activity});
   final Activity activity;
 
+  void _showRewardToast(
+    BuildContext context,
+    WidgetRef ref,
+    XpAwardOutcome outcome,
+  ) {
+    final settings = ref.read(gamificationSettingsProvider);
+    if (!settings.showRewardToasts || outcome.awardedXp <= 0) return;
+
+    final unlockParts = <String>[];
+    if (outcome.unlockedBadgeKeys.isNotEmpty) {
+      unlockParts.add('${outcome.unlockedBadgeKeys.length} badge');
+    }
+    if (outcome.unlockedTrophyKeys.isNotEmpty) {
+      unlockParts.add('${outcome.unlockedTrophyKeys.length} trophy');
+    }
+    final unlockText =
+        unlockParts.isEmpty ? '' : ' • Unlocked ${unlockParts.join(', ')}';
+    final prefix = settings.enableRewardAnimations && unlockParts.isNotEmpty
+      ? '✨ '
+      : '';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(milliseconds: 1800),
+        content: Text('$prefix+${outcome.awardedXp} XP$unlockText'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -368,7 +561,10 @@ class _PhotoCheckIn extends ConsumerWidget {
       activity.id,
     );
 
-    await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+    final result =
+        await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+    if (!context.mounted || result == null) return;
+    _showRewardToast(context, ref, result);
   }
 }
 
@@ -450,6 +646,182 @@ class _StatCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ChallengeProgressCard extends StatelessWidget {
+  const _ChallengeProgressCard({
+    required this.color,
+    required this.progress,
+    this.onViewAchievements,
+  });
+
+  final Color color;
+  final ChallengeRewardProgress progress;
+  final VoidCallback? onViewAchievements;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final badgePreview = progress.unlockedBadgeTitles.take(4).join(' • ');
+    final trophyPreview = progress.unlockedTrophyTitles.take(3).join(' • ');
+    final profile = progress.profile;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Challenge Progress',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '${DateFormat('MMM d, yyyy').format(profile.startDate)} → ${DateFormat('MMM d, yyyy').format(profile.endDate)} • ${profile.durationDays} days • x${profile.lengthMultiplier.toStringAsFixed(2)} length bonus',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _MiniStat(
+                label: 'Days',
+                value: '${profile.durationDays}',
+                color: color,
+              ),
+              const SizedBox(width: 10),
+              _MiniStat(
+                label: 'Challenge XP',
+                value: '${progress.challengeXp}',
+                color: color,
+              ),
+              const SizedBox(width: 10),
+              _MiniStat(
+                label: 'Badges',
+                value: '${progress.badgesUnlocked}/${profile.badges.length}',
+                color: color,
+              ),
+              const SizedBox(width: 10),
+              _MiniStat(
+                label: 'Trophies',
+                value: '${progress.trophiesUnlocked}/${profile.trophies.length}',
+                color: color,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            badgePreview.isEmpty
+                ? 'No challenge badges yet.'
+                : 'Recent badges: $badgePreview',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            trophyPreview.isEmpty
+                ? 'No challenge trophies yet.'
+                : 'Recent trophies: $trophyPreview',
+            style: theme.textTheme.bodySmall,
+          ),
+          if (onViewAchievements != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onViewAchievements,
+                icon: const Icon(Icons.workspace_premium_rounded),
+                label: const Text('View Challenge Achievements'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: color.withValues(alpha: 0.1),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: theme.textTheme.labelSmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryStatRow extends StatelessWidget {
+  const _SummaryStatRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -542,9 +914,12 @@ class _MomentumChart30Days extends ConsumerWidget {
     ));
 
     final values = data.values.toList();
-    final spots = values.asMap().entries.map((MapEntry<int, bool> e) {
-      return FlSpot(e.key.toDouble(), e.value ? 1.0 : 0.0);
-    }).toList();
+    if (values.isEmpty) {
+      return const SizedBox(height: 170);
+    }
+
+    final today = PaceDateUtils.toDateOnly(DateTime.now());
+    final startDate = today.subtract(Duration(days: values.length - 1));
 
     final rolling = <FlSpot>[];
     for (var i = 0; i < values.length; i++) {
@@ -554,13 +929,14 @@ class _MomentumChart30Days extends ConsumerWidget {
       rolling.add(FlSpot(i.toDouble(), avg));
     }
 
+    final monthRate = values.where((v) => v).length / values.length;
+
     return SizedBox(
       height: 170,
-      child: BarChart(
-        BarChartData(
+      child: LineChart(
+        LineChartData(
           minY: 0,
-          maxY: 1.2,
-          alignment: BarChartAlignment.spaceBetween,
+          maxY: 1,
           borderData: FlBorderData(show: false),
           gridData: FlGridData(
             show: true,
@@ -585,56 +961,87 @@ class _MomentumChart30Days extends ConsumerWidget {
                 ),
               ),
             ),
-            bottomTitles: const AxisTitles(
+            bottomTitles: AxisTitles(
               sideTitles: SideTitles(
-                showTitles: false,
+                showTitles: true,
+                interval: 7,
+                getTitlesWidget: (v, _) {
+                  final dayIndex = v.toInt();
+                  if (dayIndex < 0 || dayIndex >= values.length) {
+                    return const SizedBox.shrink();
+                  }
+                  final date = startDate.add(Duration(days: dayIndex));
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      DateFormat('MMM d').format(date),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  );
+                },
               ),
             ),
           ),
-          barTouchData: BarTouchData(
-            touchTooltipData: BarTouchTooltipData(
-              getTooltipItem: (group, _, rod, __) {
-                return BarTooltipItem(
-                  rod.toY > 0.5 ? 'Completed' : 'Missed',
-                  TextStyle(
-                    color: rod.toY > 0.5 ? Colors.green : Colors.red,
-                    fontWeight: FontWeight.w700,
-                  ),
-                );
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipItems: (spots) {
+                return spots.map((touched) {
+                  final idx = touched.x.toInt().clamp(0, values.length - 1);
+                  final date = startDate.add(Duration(days: idx));
+                  return LineTooltipItem(
+                    '${DateFormat('MMM d').format(date)}\n${(touched.y * 100).toStringAsFixed(0)}% 7d avg',
+                    const TextStyle(fontWeight: FontWeight.w700),
+                  );
+                }).toList();
               },
             ),
           ),
-          barGroups: spots.map((s) {
-            return BarChartGroupData(
-              x: s.x.toInt(),
-              barRods: [
-                BarChartRodData(
-                  toY: s.y,
-                  width: 6,
-                  color: s.y == 1 ? color : color.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(3),
+          lineBarsData: [
+            LineChartBarData(
+              spots: rolling,
+              isCurved: true,
+              curveSmoothness: 0.22,
+              barWidth: 3,
+              color: color,
+              isStrokeCapRound: true,
+              dotData: FlDotData(
+                show: true,
+                checkToShowDot: (spot, _) => spot.x % 7 == 0 || spot.x == rolling.last.x,
+                getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                  radius: 2.8,
+                  color: color,
+                  strokeColor: Theme.of(context).colorScheme.surface,
+                  strokeWidth: 1.5,
                 ),
-              ],
-              showingTooltipIndicators: const [],
-            );
-          }).toList(),
+              ),
+              belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    color.withValues(alpha: 0.24),
+                    color.withValues(alpha: 0.02),
+                  ],
+                ),
+              ),
+            ),
+          ],
           extraLinesData: ExtraLinesData(
-            extraLinesOnTop: true,
             horizontalLines: [
               HorizontalLine(
-                y: rolling.last.y,
-                color: Colors.orange.withValues(alpha: 0.8),
-                strokeWidth: 1.6,
-                dashArray: [4, 4],
+                y: monthRate,
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                strokeWidth: 1.2,
+                dashArray: [5, 5],
                 label: HorizontalLineLabel(
                   show: true,
+                  alignment: Alignment.topRight,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.orange,
                     fontWeight: FontWeight.w700,
                   ),
-                  alignment: Alignment.topRight,
                   labelResolver: (_) =>
-                      '7d avg ${(rolling.last.y * 100).toStringAsFixed(0)}%',
+                      '30d ${(monthRate * 100).toStringAsFixed(0)}%',
                 ),
               ),
             ],
@@ -768,6 +1175,35 @@ class _MonthCalendar extends ConsumerWidget {
   final Color color;
   final DateTime month;
 
+  void _showRewardToast(
+    BuildContext context,
+    WidgetRef ref,
+    XpAwardOutcome outcome,
+  ) {
+    final settings = ref.read(gamificationSettingsProvider);
+    if (!settings.showRewardToasts || outcome.awardedXp <= 0) return;
+
+    final unlockParts = <String>[];
+    if (outcome.unlockedBadgeKeys.isNotEmpty) {
+      unlockParts.add('${outcome.unlockedBadgeKeys.length} badge');
+    }
+    if (outcome.unlockedTrophyKeys.isNotEmpty) {
+      unlockParts.add('${outcome.unlockedTrophyKeys.length} trophy');
+    }
+    final unlockText =
+        unlockParts.isEmpty ? '' : ' • Unlocked ${unlockParts.join(', ')}';
+    final prefix = settings.enableRewardAnimations && unlockParts.isNotEmpty
+      ? '✨ '
+      : '';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(milliseconds: 1800),
+        content: Text('$prefix+${outcome.awardedXp} XP$unlockText'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -810,7 +1246,9 @@ class _MonthCalendar extends ConsumerWidget {
                  // Trigger photo picker for strict requirement
                  await _triggerPicker(ctx, ref, date);
                } else {
-                 await notifier.toggle(activity.id, key);
+                 final result = await notifier.toggle(activity.id, key);
+                 if (!ctx.mounted || result == null) return;
+                 _showRewardToast(ctx, ref, result);
                }
             } else {
                await notifier.toggle(activity.id, key);
@@ -884,6 +1322,9 @@ class _MonthCalendar extends ConsumerWidget {
       activity.id,
     );
 
-    await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+    final result =
+        await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+    if (!context.mounted || result == null) return;
+    _showRewardToast(context, ref, result);
   }
 }

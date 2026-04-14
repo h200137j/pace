@@ -22,43 +22,74 @@ const ActivitySchema = CollectionSchema(
       name: r'archivedAt',
       type: IsarType.dateTime,
     ),
-    r'colorValue': PropertySchema(
+    r'canSetChallengeEndDate': PropertySchema(
       id: 1,
+      name: r'canSetChallengeEndDate',
+      type: IsarType.bool,
+    ),
+    r'colorValue': PropertySchema(
+      id: 2,
       name: r'colorValue',
       type: IsarType.long,
     ),
     r'createdAt': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
+    r'difficulty': PropertySchema(
+      id: 4,
+      name: r'difficulty',
+      type: IsarType.string,
+      enumMap: _ActivitydifficultyEnumValueMap,
+    ),
+    r'endDate': PropertySchema(
+      id: 5,
+      name: r'endDate',
+      type: IsarType.dateTime,
+    ),
+    r'endDateUserSelected': PropertySchema(
+      id: 6,
+      name: r'endDateUserSelected',
+      type: IsarType.bool,
+    ),
     r'iconCodePoint': PropertySchema(
-      id: 3,
+      id: 7,
       name: r'iconCodePoint',
       type: IsarType.long,
     ),
     r'isArchived': PropertySchema(
-      id: 4,
+      id: 8,
       name: r'isArchived',
       type: IsarType.bool,
     ),
     r'name': PropertySchema(
-      id: 5,
+      id: 9,
       name: r'name',
       type: IsarType.string,
     ),
+    r'plannedDurationDays': PropertySchema(
+      id: 10,
+      name: r'plannedDurationDays',
+      type: IsarType.long,
+    ),
     r'requiresPhoto': PropertySchema(
-      id: 6,
+      id: 11,
       name: r'requiresPhoto',
       type: IsarType.bool,
     ),
+    r'startDate': PropertySchema(
+      id: 12,
+      name: r'startDate',
+      type: IsarType.dateTime,
+    ),
     r'targetDaysMask': PropertySchema(
-      id: 7,
+      id: 13,
       name: r'targetDaysMask',
       type: IsarType.long,
     ),
     r'type': PropertySchema(
-      id: 8,
+      id: 14,
       name: r'type',
       type: IsarType.string,
       enumMap: _ActivitytypeEnumValueMap,
@@ -98,6 +129,7 @@ int _activityEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  bytesCount += 3 + object.difficulty.name.length * 3;
   bytesCount += 3 + object.name.length * 3;
   bytesCount += 3 + object.type.name.length * 3;
   return bytesCount;
@@ -110,14 +142,20 @@ void _activitySerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeDateTime(offsets[0], object.archivedAt);
-  writer.writeLong(offsets[1], object.colorValue);
-  writer.writeDateTime(offsets[2], object.createdAt);
-  writer.writeLong(offsets[3], object.iconCodePoint);
-  writer.writeBool(offsets[4], object.isArchived);
-  writer.writeString(offsets[5], object.name);
-  writer.writeBool(offsets[6], object.requiresPhoto);
-  writer.writeLong(offsets[7], object.targetDaysMask);
-  writer.writeString(offsets[8], object.type.name);
+  writer.writeBool(offsets[1], object.canSetChallengeEndDate);
+  writer.writeLong(offsets[2], object.colorValue);
+  writer.writeDateTime(offsets[3], object.createdAt);
+  writer.writeString(offsets[4], object.difficulty.name);
+  writer.writeDateTime(offsets[5], object.endDate);
+  writer.writeBool(offsets[6], object.endDateUserSelected);
+  writer.writeLong(offsets[7], object.iconCodePoint);
+  writer.writeBool(offsets[8], object.isArchived);
+  writer.writeString(offsets[9], object.name);
+  writer.writeLong(offsets[10], object.plannedDurationDays);
+  writer.writeBool(offsets[11], object.requiresPhoto);
+  writer.writeDateTime(offsets[12], object.startDate);
+  writer.writeLong(offsets[13], object.targetDaysMask);
+  writer.writeString(offsets[14], object.type.name);
 }
 
 Activity _activityDeserialize(
@@ -128,15 +166,22 @@ Activity _activityDeserialize(
 ) {
   final object = Activity();
   object.archivedAt = reader.readDateTimeOrNull(offsets[0]);
-  object.colorValue = reader.readLong(offsets[1]);
-  object.createdAt = reader.readDateTime(offsets[2]);
-  object.iconCodePoint = reader.readLong(offsets[3]);
+  object.colorValue = reader.readLong(offsets[2]);
+  object.createdAt = reader.readDateTime(offsets[3]);
+  object.difficulty =
+      _ActivitydifficultyValueEnumMap[reader.readStringOrNull(offsets[4])] ??
+          ActivityDifficulty.easy;
+  object.endDate = reader.readDateTimeOrNull(offsets[5]);
+  object.endDateUserSelected = reader.readBool(offsets[6]);
+  object.iconCodePoint = reader.readLong(offsets[7]);
   object.id = id;
-  object.name = reader.readString(offsets[5]);
-  object.requiresPhoto = reader.readBool(offsets[6]);
-  object.targetDaysMask = reader.readLong(offsets[7]);
+  object.name = reader.readString(offsets[9]);
+  object.plannedDurationDays = reader.readLong(offsets[10]);
+  object.requiresPhoto = reader.readBool(offsets[11]);
+  object.startDate = reader.readDateTimeOrNull(offsets[12]);
+  object.targetDaysMask = reader.readLong(offsets[13]);
   object.type =
-      _ActivitytypeValueEnumMap[reader.readStringOrNull(offsets[8])] ??
+      _ActivitytypeValueEnumMap[reader.readStringOrNull(offsets[14])] ??
           ActivityType.challenge;
   return object;
 }
@@ -151,20 +196,34 @@ P _activityDeserializeProp<P>(
     case 0:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 1:
-      return (reader.readLong(offset)) as P;
-    case 2:
-      return (reader.readDateTime(offset)) as P;
-    case 3:
-      return (reader.readLong(offset)) as P;
-    case 4:
       return (reader.readBool(offset)) as P;
+    case 2:
+      return (reader.readLong(offset)) as P;
+    case 3:
+      return (reader.readDateTime(offset)) as P;
+    case 4:
+      return (_ActivitydifficultyValueEnumMap[
+              reader.readStringOrNull(offset)] ??
+          ActivityDifficulty.easy) as P;
     case 5:
-      return (reader.readString(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 6:
       return (reader.readBool(offset)) as P;
     case 7:
       return (reader.readLong(offset)) as P;
     case 8:
+      return (reader.readBool(offset)) as P;
+    case 9:
+      return (reader.readString(offset)) as P;
+    case 10:
+      return (reader.readLong(offset)) as P;
+    case 11:
+      return (reader.readBool(offset)) as P;
+    case 12:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 13:
+      return (reader.readLong(offset)) as P;
+    case 14:
       return (_ActivitytypeValueEnumMap[reader.readStringOrNull(offset)] ??
           ActivityType.challenge) as P;
     default:
@@ -172,6 +231,18 @@ P _activityDeserializeProp<P>(
   }
 }
 
+const _ActivitydifficultyEnumValueMap = {
+  r'easy': r'easy',
+  r'medium': r'medium',
+  r'hard': r'hard',
+  r'elite': r'elite',
+};
+const _ActivitydifficultyValueEnumMap = {
+  r'easy': ActivityDifficulty.easy,
+  r'medium': ActivityDifficulty.medium,
+  r'hard': ActivityDifficulty.hard,
+  r'elite': ActivityDifficulty.elite,
+};
 const _ActivitytypeEnumValueMap = {
   r'challenge': r'challenge',
   r'task': r'task',
@@ -386,6 +457,16 @@ extension ActivityQueryFilter
     });
   }
 
+  QueryBuilder<Activity, Activity, QAfterFilterCondition>
+      canSetChallengeEndDateEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'canSetChallengeEndDate',
+        value: value,
+      ));
+    });
+  }
+
   QueryBuilder<Activity, Activity, QAfterFilterCondition> colorValueEqualTo(
       int value) {
     return QueryBuilder.apply(this, (query) {
@@ -488,6 +569,216 @@ extension ActivityQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> difficultyEqualTo(
+    ActivityDifficulty value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'difficulty',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> difficultyGreaterThan(
+    ActivityDifficulty value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'difficulty',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> difficultyLessThan(
+    ActivityDifficulty value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'difficulty',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> difficultyBetween(
+    ActivityDifficulty lower,
+    ActivityDifficulty upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'difficulty',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> difficultyStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'difficulty',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> difficultyEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'difficulty',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> difficultyContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'difficulty',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> difficultyMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'difficulty',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> difficultyIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'difficulty',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition>
+      difficultyIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'difficulty',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> endDateIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'endDate',
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> endDateIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'endDate',
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> endDateEqualTo(
+      DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'endDate',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> endDateGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'endDate',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> endDateLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'endDate',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> endDateBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'endDate',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition>
+      endDateUserSelectedEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'endDateUserSelected',
+        value: value,
       ));
     });
   }
@@ -738,12 +1029,137 @@ extension ActivityQueryFilter
     });
   }
 
+  QueryBuilder<Activity, Activity, QAfterFilterCondition>
+      plannedDurationDaysEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'plannedDurationDays',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition>
+      plannedDurationDaysGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'plannedDurationDays',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition>
+      plannedDurationDaysLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'plannedDurationDays',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition>
+      plannedDurationDaysBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'plannedDurationDays',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
   QueryBuilder<Activity, Activity, QAfterFilterCondition> requiresPhotoEqualTo(
       bool value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'requiresPhoto',
         value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> startDateIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'startDate',
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> startDateIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'startDate',
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> startDateEqualTo(
+      DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'startDate',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> startDateGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'startDate',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> startDateLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'startDate',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterFilterCondition> startDateBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'startDate',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
       ));
     });
   }
@@ -953,6 +1369,20 @@ extension ActivityQuerySortBy on QueryBuilder<Activity, Activity, QSortBy> {
     });
   }
 
+  QueryBuilder<Activity, Activity, QAfterSortBy>
+      sortByCanSetChallengeEndDate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'canSetChallengeEndDate', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy>
+      sortByCanSetChallengeEndDateDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'canSetChallengeEndDate', Sort.desc);
+    });
+  }
+
   QueryBuilder<Activity, Activity, QAfterSortBy> sortByColorValue() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'colorValue', Sort.asc);
@@ -974,6 +1404,43 @@ extension ActivityQuerySortBy on QueryBuilder<Activity, Activity, QSortBy> {
   QueryBuilder<Activity, Activity, QAfterSortBy> sortByCreatedAtDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'createdAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> sortByDifficulty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'difficulty', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> sortByDifficultyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'difficulty', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> sortByEndDate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endDate', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> sortByEndDateDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endDate', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> sortByEndDateUserSelected() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endDateUserSelected', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy>
+      sortByEndDateUserSelectedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endDateUserSelected', Sort.desc);
     });
   }
 
@@ -1013,6 +1480,19 @@ extension ActivityQuerySortBy on QueryBuilder<Activity, Activity, QSortBy> {
     });
   }
 
+  QueryBuilder<Activity, Activity, QAfterSortBy> sortByPlannedDurationDays() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'plannedDurationDays', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy>
+      sortByPlannedDurationDaysDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'plannedDurationDays', Sort.desc);
+    });
+  }
+
   QueryBuilder<Activity, Activity, QAfterSortBy> sortByRequiresPhoto() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'requiresPhoto', Sort.asc);
@@ -1022,6 +1502,18 @@ extension ActivityQuerySortBy on QueryBuilder<Activity, Activity, QSortBy> {
   QueryBuilder<Activity, Activity, QAfterSortBy> sortByRequiresPhotoDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'requiresPhoto', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> sortByStartDate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'startDate', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> sortByStartDateDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'startDate', Sort.desc);
     });
   }
 
@@ -1064,6 +1556,20 @@ extension ActivityQuerySortThenBy
     });
   }
 
+  QueryBuilder<Activity, Activity, QAfterSortBy>
+      thenByCanSetChallengeEndDate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'canSetChallengeEndDate', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy>
+      thenByCanSetChallengeEndDateDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'canSetChallengeEndDate', Sort.desc);
+    });
+  }
+
   QueryBuilder<Activity, Activity, QAfterSortBy> thenByColorValue() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'colorValue', Sort.asc);
@@ -1085,6 +1591,43 @@ extension ActivityQuerySortThenBy
   QueryBuilder<Activity, Activity, QAfterSortBy> thenByCreatedAtDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'createdAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> thenByDifficulty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'difficulty', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> thenByDifficultyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'difficulty', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> thenByEndDate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endDate', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> thenByEndDateDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endDate', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> thenByEndDateUserSelected() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endDateUserSelected', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy>
+      thenByEndDateUserSelectedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endDateUserSelected', Sort.desc);
     });
   }
 
@@ -1136,6 +1679,19 @@ extension ActivityQuerySortThenBy
     });
   }
 
+  QueryBuilder<Activity, Activity, QAfterSortBy> thenByPlannedDurationDays() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'plannedDurationDays', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy>
+      thenByPlannedDurationDaysDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'plannedDurationDays', Sort.desc);
+    });
+  }
+
   QueryBuilder<Activity, Activity, QAfterSortBy> thenByRequiresPhoto() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'requiresPhoto', Sort.asc);
@@ -1145,6 +1701,18 @@ extension ActivityQuerySortThenBy
   QueryBuilder<Activity, Activity, QAfterSortBy> thenByRequiresPhotoDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'requiresPhoto', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> thenByStartDate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'startDate', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QAfterSortBy> thenByStartDateDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'startDate', Sort.desc);
     });
   }
 
@@ -1181,6 +1749,13 @@ extension ActivityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Activity, Activity, QDistinct>
+      distinctByCanSetChallengeEndDate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'canSetChallengeEndDate');
+    });
+  }
+
   QueryBuilder<Activity, Activity, QDistinct> distinctByColorValue() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'colorValue');
@@ -1190,6 +1765,25 @@ extension ActivityQueryWhereDistinct
   QueryBuilder<Activity, Activity, QDistinct> distinctByCreatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'createdAt');
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QDistinct> distinctByDifficulty(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'difficulty', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QDistinct> distinctByEndDate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'endDate');
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QDistinct> distinctByEndDateUserSelected() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'endDateUserSelected');
     });
   }
 
@@ -1212,9 +1806,21 @@ extension ActivityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Activity, Activity, QDistinct> distinctByPlannedDurationDays() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'plannedDurationDays');
+    });
+  }
+
   QueryBuilder<Activity, Activity, QDistinct> distinctByRequiresPhoto() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'requiresPhoto');
+    });
+  }
+
+  QueryBuilder<Activity, Activity, QDistinct> distinctByStartDate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'startDate');
     });
   }
 
@@ -1246,6 +1852,13 @@ extension ActivityQueryProperty
     });
   }
 
+  QueryBuilder<Activity, bool, QQueryOperations>
+      canSetChallengeEndDateProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'canSetChallengeEndDate');
+    });
+  }
+
   QueryBuilder<Activity, int, QQueryOperations> colorValueProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'colorValue');
@@ -1255,6 +1868,25 @@ extension ActivityQueryProperty
   QueryBuilder<Activity, DateTime, QQueryOperations> createdAtProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'createdAt');
+    });
+  }
+
+  QueryBuilder<Activity, ActivityDifficulty, QQueryOperations>
+      difficultyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'difficulty');
+    });
+  }
+
+  QueryBuilder<Activity, DateTime?, QQueryOperations> endDateProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'endDate');
+    });
+  }
+
+  QueryBuilder<Activity, bool, QQueryOperations> endDateUserSelectedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'endDateUserSelected');
     });
   }
 
@@ -1276,9 +1908,21 @@ extension ActivityQueryProperty
     });
   }
 
+  QueryBuilder<Activity, int, QQueryOperations> plannedDurationDaysProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'plannedDurationDays');
+    });
+  }
+
   QueryBuilder<Activity, bool, QQueryOperations> requiresPhotoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'requiresPhoto');
+    });
+  }
+
+  QueryBuilder<Activity, DateTime?, QQueryOperations> startDateProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'startDate');
     });
   }
 

@@ -7,7 +7,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'providers/ui_state_provider.dart';
 import 'ui/screens/analytics/analytics_screen.dart';
 import 'ui/screens/detail/activity_detail_screen.dart';
+import 'ui/screens/detail/challenge_achievements_screen.dart';
 import 'ui/screens/detail/montage_screen.dart';
+import 'ui/screens/gamification/badges_screen.dart';
+import 'ui/screens/gamification/trophies_screen.dart';
 import 'ui/screens/home/home_screen.dart';
 import 'ui/screens/settings/settings_screen.dart';
 
@@ -41,6 +44,12 @@ final appRouter = GoRouter(
               ),
               routes: [
                 GoRoute(
+                  path: 'achievements',
+                  builder: (_, state) => ChallengeAchievementsScreen(
+                    activityId: int.parse(state.pathParameters['id']!),
+                  ),
+                ),
+                GoRoute(
                   path: 'montage',
                   builder: (_, state) => MontageScreen(
                     activityId: int.parse(state.pathParameters['id']!),
@@ -65,6 +74,16 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/settings',
               builder: (_, __) => const SettingsScreen(),
+              routes: [
+                GoRoute(
+                  path: 'badges',
+                  builder: (_, __) => const BadgesScreen(),
+                ),
+                GoRoute(
+                  path: 'trophies',
+                  builder: (_, __) => const TrophiesScreen(),
+                ),
+              ],
             ),
           ],
         ),

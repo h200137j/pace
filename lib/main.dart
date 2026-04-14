@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/services/background_worker.dart';
+import 'core/services/challenge_date_migration_service.dart';
+import 'core/services/gamification_migration_service.dart';
 import 'core/services/notification_service.dart';
 import 'data/services/isar_service.dart';
 
@@ -20,6 +22,12 @@ Future<void> main() async {
     // Initialize Background Worker
     await BackgroundWorker.instance.init();
     await BackgroundWorker.instance.registerChallengeCheck();
+
+    // One-time migration: rebuild gamification from historical completions.
+    await GamificationMigrationService.ensureRebuiltOnce();
+
+    // One-time migration: ensure legacy challenges default to year-end end dates.
+    await ChallengeDateMigrationService.ensureMigratedOnce();
   } catch (e) {
     debugPrint('Initialization error: $e');
     // Still launch the app so the user sees something instead of a black screen.

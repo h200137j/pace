@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -8,6 +9,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../data/services/export_service.dart';
 import '../../../providers/activity_provider.dart';
 import '../../../providers/completion_provider.dart';
+import '../../../providers/gamification_settings_provider.dart';
+import '../../../providers/gamification_provider.dart';
 import '../../../providers/theme_provider.dart';
 
 final appInfoProvider = FutureProvider<PackageInfo>((ref) async {
@@ -22,11 +25,14 @@ class SettingsScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final themeState = ref.watch(themeProvider);
     final themeNotifier = ref.read(themeProvider.notifier);
+    final gmSettings = ref.watch(gamificationSettingsProvider);
+    final gmSettingsNotifier = ref.read(gamificationSettingsProvider.notifier);
     final appInfo = ref.watch(appInfoProvider);
 
     ExportService makeExport(WidgetRef r) => ExportService(
           activityRepo: r.read(activityRepositoryProvider),
           completionRepo: r.read(completionRepositoryProvider),
+          gamificationRepo: r.read(gamificationRepositoryProvider),
         );
 
     return Scaffold(
@@ -147,6 +153,35 @@ class SettingsScreen extends ConsumerWidget {
                   }
                 },
               ),
+              const Divider(height: 32),
+
+              // ── Gamification ────────────────────────────────────────────
+              const _SectionHeader('Gamification'),
+              _SettingsTile(
+                icon: Icons.military_tech_rounded,
+                title: 'Achievement Badges',
+                subtitle: 'View badge progress and unlocks',
+                onTap: () => context.push('/settings/badges'),
+              ),
+              _SettingsTile(
+                icon: Icons.emoji_events_rounded,
+                title: 'Trophies',
+                subtitle: 'Track your major milestones',
+                onTap: () => context.push('/settings/trophies'),
+              ),
+              SwitchListTile(
+                value: gmSettings.showRewardToasts,
+                onChanged: gmSettingsNotifier.setShowRewardToasts,
+                title: const Text('Show Reward Toasts'),
+                subtitle: const Text('Display +XP and unlock notifications'),
+              ),
+              SwitchListTile(
+                value: gmSettings.enableRewardAnimations,
+                onChanged: gmSettingsNotifier.setEnableRewardAnimations,
+                title: const Text('Enable Reward Animations'),
+                subtitle: const Text('Use richer unlock celebration effects'),
+              ),
+
               const Divider(height: 32),
 
               // ── About ─────────────────────────────────────────────────────

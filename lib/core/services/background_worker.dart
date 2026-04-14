@@ -21,8 +21,18 @@ void callbackDispatcher() {
       final challenges = allActivities.where((a) => a.type == ActivityType.challenge).toList();
       
       final todayKey = PaceDateUtils.todayKey();
+      final today = PaceDateUtils.toDateOnly(DateTime.now());
       
       for (final challenge in challenges) {
+        final endDate = challenge.endDate == null
+            ? DateTime.utc(today.year, 12, 31)
+            : PaceDateUtils.toDateOnly(challenge.endDate!);
+
+        if (today.isAfter(endDate)) {
+          await NotificationService.instance.cancelNotification(challenge.id);
+          continue;
+        }
+
         final isDoneToday = await completionRepo.isCompleted(challenge.id, todayKey);
         
         if (isDoneToday) {

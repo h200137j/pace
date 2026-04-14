@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_icons.dart';
-// import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/date_utils.dart';
 import '../../../data/models/activity.dart';
 import '../../../providers/activity_provider.dart';
 
@@ -20,10 +21,13 @@ class CreateActivitySheet extends ConsumerStatefulWidget {
 class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
   late TextEditingController _nameCtrl;
   ActivityType _type = ActivityType.task;
+  ActivityDifficulty _difficulty = ActivityDifficulty.medium;
   Color _color = AppColors.activityPalette.first;
   int _iconCodePoint = AppIcons.activityIcons.first.icon.codePoint;
   int _targetDaysMask = 127; // all days
   bool _requiresPhoto = false;
+  DateTime? _challengeEndDate;
+  bool _endDateUserSelected = false;
 
   @override
   void initState() {
@@ -32,10 +36,17 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
     _nameCtrl = TextEditingController(text: a?.name ?? '');
     if (a != null) {
       _type = a.type;
+      _difficulty = a.difficulty;
       _color = Color(a.colorValue);
       _iconCodePoint = a.iconCodePoint;
       _targetDaysMask = a.targetDaysMask;
       _requiresPhoto = a.requiresPhoto;
+      _challengeEndDate = a.endDate;
+      _endDateUserSelected = a.endDateUserSelected;
+    }
+
+    if (a == null && _type == ActivityType.challenge) {
+      _challengeEndDate = _defaultYearEnd();
     }
   }
 
@@ -47,28 +58,70 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
 
   bool get _isEditing => widget.existing != null;
 
+  DateTime _defaultYearEnd() {
+    final now = DateTime.now();
+    return PaceDateUtils.toDateOnly(DateTime.utc(now.year, 12, 31));
+  }
+
+  DateTime _defaultChallengeStartDate() {
+    final existing = widget.existing;
+    if (existing?.startDate != null) {
+      return PaceDateUtils.toDateOnly(existing!.startDate!);
+    }
+    if (existing != null) {
+      return PaceDateUtils.toDateOnly(existing.createdAt);
+    }
+    return PaceDateUtils.toDateOnly(DateTime.now());
+  }
+
+  bool get _canEditEndDate {
+    if (_type != ActivityType.challenge) return false;
+    final existing = widget.existing;
+    if (existing == null) return true;
+    return existing.endDate == null;
+  }
+
   Future<void> _submit() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
+
+    if (_type == ActivityType.challenge && _challengeEndDate == null) {
+      _challengeEndDate = _defaultYearEnd();
+      _endDateUserSelected = false;
+    }
 
     final notifier = ref.read(activityNotifierProvider.notifier);
     if (_isEditing) {
       final act = widget.existing!
         ..name = name
         ..type = _type
-        ..colorValue = _color.value
+        ..difficulty = _difficulty
+        ..colorValue = _color.toARGB32()
         ..iconCodePoint = _iconCodePoint
         ..targetDaysMask = _targetDaysMask
         ..requiresPhoto = _requiresPhoto;
+
+      if (_type == ActivityType.challenge && act.endDate == null) {
+        act
+          ..startDate = _defaultChallengeStartDate()
+          ..endDate = _challengeEndDate ?? _defaultYearEnd()
+          ..endDateUserSelected = _endDateUserSelected;
+      }
+
       await notifier.update(act);
     } else {
       await notifier.create(
         name: name,
         type: _type,
+        difficulty: _difficulty,
         color: _color,
         iconCodePoint: _iconCodePoint,
         targetDaysMask: _targetDaysMask,
         requiresPhoto: _requiresPhoto,
+        challengeEndDate: _type == ActivityType.challenge
+            ? _challengeEndDate ?? _defaultYearEnd()
+            : null,
+        endDateUserSelected: _type == ActivityType.challenge && _endDateUserSelected,
       );
     }
 
@@ -135,7 +188,99 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
             const SizedBox(height: 8),
             _TypeSelector(
               selected: _type,
-              onChanged: (t) => setState(() => _type = t),
+              onChanged: (t) {
+                setState(() {
+                  _type = t;
+                  if (_type == ActivityType.challenge && _challengeEndDate == null) {
+                    _challengeEndDate = _defaultYearEnd();
+                    _endDateUserSelected = false;
+                  }
+                  if (_type != ActivityType.challenge) {
+                    _challengeEndDate = null;
+                    _endDateUserSelected = false;
+                  }
+                });
+              },
+            ),
+            const SizedBox(height: 20),
+
+            if (_type == ActivityType.challenge) ...[
+              Text('Challenge End Date', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                tileColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                leading: Icon(Icons.event_rounded, color: _color),
+                title: Text(
+                  DateFormat('EEE, MMM d, yyyy').format(
+                    PaceDateUtils.toDateOnly(_challengeEndDate ?? _defaultYearEnd()),
+                  ),
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                subtitle: Text(
+                  _canEditEndDate
+                      ? (_endDateUserSelected
+                          ? 'User selected'
+                          : 'Default: end of current year')
+                      : 'Locked after set',
+                ),
+                trailing: _canEditEndDate
+                    ? const Icon(Icons.edit_calendar_rounded)
+                    : const Icon(Icons.lock_outline_rounded),
+                onTap: !_canEditEndDate
+                    ? null
+                    : () async {
+                        final start = _defaultChallengeStartDate();
+                        final minEndDate = start.add(const Duration(days: 6));
+                        final maxEndDate = start.add(const Duration(days: 366));
+                        var initial = PaceDateUtils.toDateOnly(
+                          _challengeEndDate ?? _defaultYearEnd(),
+                        );
+                        if (initial.isBefore(minEndDate)) {
+                          initial = minEndDate;
+                        }
+                        if (initial.isAfter(maxEndDate)) {
+                          initial = maxEndDate;
+                        }
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: initial,
+                          firstDate: minEndDate,
+                          lastDate: maxEndDate,
+                        );
+                        if (picked == null) return;
+                        setState(() {
+                          _challengeEndDate = PaceDateUtils.toDateOnly(picked);
+                          _endDateUserSelected = true;
+                        });
+                      },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _canEditEndDate
+                    ? 'End date is immutable after the challenge is created.'
+                    : 'This challenge end date is locked and cannot be changed.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            // ── Difficulty Selector ───────────────────────────────────────
+            Text('Difficulty', style: theme.textTheme.labelLarge),
+            const SizedBox(height: 8),
+            _DifficultySelector(
+              selected: _difficulty,
+              onChanged: (d) => setState(() => _difficulty = d),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Higher difficulty earns more XP per completion.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -243,6 +388,40 @@ class _TypeSelector extends StatelessWidget {
   }
 }
 
+class _DifficultySelector extends StatelessWidget {
+  const _DifficultySelector({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final ActivityDifficulty selected;
+  final ValueChanged<ActivityDifficulty> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const options = [
+      (difficulty: ActivityDifficulty.easy, label: 'Easy'),
+      (difficulty: ActivityDifficulty.medium, label: 'Medium'),
+      (difficulty: ActivityDifficulty.hard, label: 'Hard'),
+      (difficulty: ActivityDifficulty.elite, label: 'Elite'),
+    ];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options
+          .map(
+            (option) => ChoiceChip(
+              label: Text(option.label),
+              selected: selected == option.difficulty,
+              onSelected: (_) => onChanged(option.difficulty),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
 class _ColorPicker extends StatelessWidget {
   const _ColorPicker({required this.selected, required this.onChanged});
 
@@ -255,7 +434,7 @@ class _ColorPicker extends StatelessWidget {
       spacing: 10,
       runSpacing: 10,
       children: AppColors.activityPalette.map((c) {
-        final isSelected = c.value == selected.value;
+        final isSelected = c.toARGB32() == selected.toARGB32();
         return GestureDetector(
           onTap: () => onChanged(c),
           child: AnimatedContainer(
@@ -270,7 +449,7 @@ class _ColorPicker extends StatelessWidget {
                 width: 3,
               ),
               boxShadow: isSelected
-                  ? [BoxShadow(color: c.withOpacity(0.6), blurRadius: 8)]
+                  ? [BoxShadow(color: c.withValues(alpha: 0.6), blurRadius: 8)]
                   : [],
             ),
             child: isSelected
@@ -315,7 +494,7 @@ class _IconPicker extends StatelessWidget {
               duration: const Duration(milliseconds: 180),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: isSelected ? color.withOpacity(0.2) : Colors.transparent,
+                color: isSelected ? color.withValues(alpha: 0.2) : Colors.transparent,
                 border: Border.all(
                   color: isSelected ? color : Colors.transparent,
                   width: 1.5,
@@ -364,7 +543,7 @@ class _DaySelector extends StatelessWidget {
                 height: 38,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
-                  color: active ? color : color.withOpacity(0.1),
+                  color: active ? color : color.withValues(alpha: 0.1),
                 ),
                 child: Center(
                   child: Text(

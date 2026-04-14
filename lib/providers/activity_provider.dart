@@ -31,20 +31,26 @@ class ActivityNotifier extends StateNotifier<AsyncValue<void>> {
   Future<Activity?> create({
     required String name,
     required ActivityType type,
+    ActivityDifficulty difficulty = ActivityDifficulty.medium,
     required Color color,
     required int iconCodePoint,
     int targetDaysMask = 127,
     bool requiresPhoto = false,
+    DateTime? challengeEndDate,
+    bool endDateUserSelected = false,
   }) async {
     state = const AsyncValue.loading();
     try {
       final act = await _repo.create(
         name: name,
         type: type,
-        colorValue: color.value,
+        difficulty: difficulty,
+        colorValue: color.toARGB32(),
         iconCodePoint: iconCodePoint,
         targetDaysMask: targetDaysMask,
         requiresPhoto: requiresPhoto,
+        challengeEndDate: challengeEndDate,
+        endDateUserSelected: endDateUserSelected,
       );
       state = const AsyncValue.data(null);
       return act;
