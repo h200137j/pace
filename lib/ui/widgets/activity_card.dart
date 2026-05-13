@@ -44,6 +44,38 @@ class ActivityCard extends ConsumerWidget {
       ActivityType.focus => 'Focus',
     };
 
+    final difficultyLabel = switch (activity.difficulty) {
+      ActivityDifficulty.easy => null,
+      ActivityDifficulty.medium => null,
+      ActivityDifficulty.hard => 'Hard',
+      ActivityDifficulty.elite => 'Elite',
+    };
+
+    // Challenge time progress
+    final isChallenge = activity.type == ActivityType.challenge;
+    final today = PaceDateUtils.toDateOnly(DateTime.now());
+    final challengeEnd = activity.endDate != null
+        ? PaceDateUtils.toDateOnly(activity.endDate!)
+        : null;
+    final challengeStart = activity.startDate != null
+        ? PaceDateUtils.toDateOnly(activity.startDate!)
+        : null;
+    double challengeTimeProgress = 0;
+    if (isChallenge && challengeStart != null && challengeEnd != null) {
+      final total = challengeEnd.difference(challengeStart).inDays;
+      final elapsed = today.difference(challengeStart).inDays.clamp(0, total);
+      challengeTimeProgress = total > 0 ? elapsed / total : 1.0;
+    }
+
+    // Contextual stat
+    String? contextStat;
+    if (isChallenge && challengeEnd != null) {
+      final daysLeft = challengeEnd.difference(today).inDays;
+      contextStat = daysLeft > 0 ? '${daysLeft}d left' : 'Complete';
+    } else {
+      if (streak.longest > 0) contextStat = 'best ${streak.longest}';
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
@@ -98,13 +130,14 @@ class ActivityCard extends ConsumerWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ── Top row: icon + name + type chips + ring ──────────
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Icon circle with glass effect
                           Container(
                             width: 48,
                             height: 48,
@@ -112,9 +145,7 @@ class ActivityCard extends ConsumerWidget {
                               color: color.withOpacity(0.12),
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: color.withOpacity(0.2),
-                                width: 1,
-                              ),
+                                  color: color.withOpacity(0.2), width: 1),
                             ),
                             child: Icon(icon, color: color, size: 24),
                           ),
@@ -134,44 +165,91 @@ class ActivityCard extends ConsumerWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: color.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    typeLabel.toUpperCase(),
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      color: color.withOpacity(0.8),
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.5,
+                                const SizedBox(height: 5),
+                                // ── Type + difficulty + photo chips ──────────
+                                Wrap(
+                                  spacing: 5,
+                                  runSpacing: 4,
+                                  children: [
+                                    _Chip(
+                                      label: typeLabel.toUpperCase(),
+                                      color: color,
                                     ),
-                                  ),
+                                    if (difficultyLabel != null)
+                                      _Chip(
+                                        label: difficultyLabel.toUpperCase(),
+                                        color: difficultyLabel == 'Elite'
+                                            ? const Color(0xFFAB47BC)
+                                            : Colors.orange,
+                                      ),
+                                    if (activity.requiresPhoto)
+                                      _Chip(
+                                        label: '📷',
+                                        color: color,
+                                        isIcon: true,
+                                      ),
+                                  ],
                                 ),
                               ],
                             ),
                           ),
-                          if (showCheckIn)
+                          if (showCheckIn) ...[
+                            const SizedBox(width: 8),
                             _CheckInButton(
                               activity: activity,
                               isDone: isDoneToday,
                               color: color,
                               weeklyRate: weeklyRate,
                             ),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 20),
+
+                      const SizedBox(height: 16),
+
+                      // ── Stats + week dots ──────────────────────────────────
                       Row(
                         children: [
-                          StreakBadge(result: streak, compact: true),
+                          // Streak
+                          _StatPill(
+                            icon: streak.current > 0 ? '🔥' : '○',
+                            value: '${streak.current}',
+                            color: color,
+                          ),
+                          const SizedBox(width: 8),
+                          // Total completions
+                          _StatPill(
+                            icon: '✓',
+                            value: '${streak.totalCompletions}',
+                            color: color,
+                          ),
+                          if (contextStat != null) ...[
+                            const SizedBox(width: 8),
+                            _StatPill(
+                              value: contextStat,
+                              color: color,
+                            ),
+                          ],
                           const Spacer(),
                           _WeekDots(weeklyRates: weeklyRates, color: color),
                         ],
                       ),
+
+                      // ── Challenge time bar ────────────────────────────────
+                      if (isChallenge && challengeStart != null &&
+                          challengeEnd != null) ...[
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: challengeTimeProgress,
+                            minHeight: 3,
+                            backgroundColor: color.withOpacity(0.1),
+                            valueColor:
+                                AlwaysStoppedAnimation(color.withOpacity(0.6)),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -333,6 +411,69 @@ class _PhotoSourceSheet extends StatelessWidget {
             onTap: () => Navigator.pop(context, false),
           ),
           const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.color, this.isIcon = false});
+  final String label;
+  final Color color;
+  final bool isIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+          horizontal: isIcon ? 6 : 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          color: color.withValues(alpha: 0.85),
+          fontWeight: FontWeight.w800,
+          letterSpacing: isIcon ? 0 : 0.4,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatPill extends StatelessWidget {
+  const _StatPill({this.icon, required this.value, required this.color});
+  final String? icon;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Text(icon!, style: const TextStyle(fontSize: 11)),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: Colors.white.withValues(alpha: 0.6),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
