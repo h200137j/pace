@@ -153,6 +153,17 @@ class GamificationService {
     profile.updatedAt = DateTime.now();
   }
 
+  /// Public entry-point used by catalog migrations — re-evaluate without
+  /// awarding new XP.
+  void evaluateBadgesAndTrophies(
+    GamificationProfile profile,
+    List<BadgeUnlock> badges,
+    List<TrophyUnlock> trophies,
+  ) {
+    _evaluateBadges(profile, badges);
+    _evaluateTrophies(profile, badges, trophies);
+  }
+
   void _evaluateBadges(
     GamificationProfile profile,
     List<BadgeUnlock> existing,

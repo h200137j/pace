@@ -26,6 +26,9 @@ Future<void> main() async {
     // One-time migration: rebuild gamification from historical completions.
     await GamificationMigrationService.ensureRebuiltOnce();
 
+    // One-time migration: backfill badges/trophies after catalog changes.
+    await GamificationMigrationService.ensureBadgesEvaluated();
+
     // One-time migration: ensure legacy challenges default to year-end end dates.
     await ChallengeDateMigrationService.ensureMigratedOnce();
   } catch (e) {

@@ -12,6 +12,48 @@ class GamificationMigrationService {
 
   static const _migrationMarkerKey = 'gm_migration_rebuild_v1_done';
 
+  // Bump this key whenever BadgeCatalog or TrophyCatalog changes structurally.
+  static const _badgeCatalogMigrationKey = 'badge_catalog_v2_evaluated';
+
+  /// Re-evaluates all badges/trophies against the current catalog.
+  /// Runs once per catalog version so new catalog entries get backfilled.
+  static Future<void> ensureBadgesEvaluated() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_badgeCatalogMigrationKey) ?? false) return;
+
+    final gamificationRepo = GamificationRepository();
+    final profile = await gamificationRepo.getProfile();
+    if (profile == null) {
+      // No profile yet — normal first-run, nothing to backfill.
+      await prefs.setBool(_badgeCatalogMigrationKey, true);
+      return;
+    }
+
+    try {
+      final service = GamificationService(
+        activityRepository: ActivityRepository(),
+        gamificationRepository: gamificationRepo,
+      );
+      final badges = await gamificationRepo.getAllBadges();
+      final trophies = await gamificationRepo.getAllTrophies();
+      // Re-evaluate badge/trophy state against the new catalog without
+      // changing XP or resetting the profile.
+      service.evaluateBadgesAndTrophies(profile, badges, trophies);
+      await gamificationRepo.saveBadgesAndTrophies(
+        badges: badges,
+        trophies: trophies,
+      );
+      await prefs.setBool(_badgeCatalogMigrationKey, true);
+    } catch (e, st) {
+      developer.log(
+        'Badge catalog migration failed: $e',
+        name: 'pace.gamification.migration',
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+
   static Future<void> ensureRebuiltOnce() async {
     final prefs = await SharedPreferences.getInstance();
     final alreadyDone = prefs.getBool(_migrationMarkerKey) ?? false;

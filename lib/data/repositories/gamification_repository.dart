@@ -61,6 +61,17 @@ class GamificationRepository {
     });
   }
 
+  /// Write updated badges and trophies without touching XP events.
+  Future<void> saveBadgesAndTrophies({
+    required List<BadgeUnlock> badges,
+    required List<TrophyUnlock> trophies,
+  }) async {
+    await _db.writeTxn(() async {
+      if (badges.isNotEmpty) await _badges.putAllByBadgeKey(badges);
+      if (trophies.isNotEmpty) await _trophies.putAllByTrophyKey(trophies);
+    });
+  }
+
   Future<List<XpEvent>> getAllEvents() => _events.where().findAll();
 
   Stream<List<XpEvent>> watchAllEvents() =>
