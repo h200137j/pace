@@ -48,29 +48,20 @@ jobs:
       - name: Build AAB
         run: flutter build appbundle --release --no-tree-shake-icons
 
-      - name: Rename artifacts
+      - name: Collect artifacts
         run: |
           set -euo pipefail
           TAG_NAME=${GITHUB_REF_NAME:-manual}
-          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/pace-$TAG_NAME.apk
-          mv build/app/outputs/bundle/release/app-release.aab build/app/outputs/bundle/release/pace-$TAG_NAME.aab
-
-      - name: Verify outputs
-        run: |
-          set -euo pipefail
-          TAG_NAME=${GITHUB_REF_NAME:-manual}
-          ls -la build/app/outputs/flutter-apk/
-          ls -la build/app/outputs/bundle/release/
-          test -f build/app/outputs/flutter-apk/pace-$TAG_NAME.apk
-          test -f build/app/outputs/bundle/release/pace-$TAG_NAME.aab
+          mkdir -p dist
+          mv build/app/outputs/flutter-apk/app-release.apk dist/pace-$TAG_NAME.apk
+          mv build/app/outputs/bundle/release/app-release.aab dist/pace-$TAG_NAME.aab
+          ls -la dist/
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Pace-Artifacts
-          path: |
-            build/app/outputs/flutter-apk/pace-*.apk
-            build/app/outputs/bundle/release/pace-*.aab
+          path: dist/
 
       - name: Prepare Release Notes
         if: startsWith(github.ref, 'refs/tags/v')
@@ -116,9 +107,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            build/app/outputs/flutter-apk/pace-*.apk
-            build/app/outputs/bundle/release/pace-*.aab
+          files: dist/*
           body_path: release_notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
