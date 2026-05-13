@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/challenge_easter_egg_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/services/challenge_reward_service.dart';
 import '../../../core/utils/streak_calculator.dart';
@@ -269,6 +270,12 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               onPressed: () => context.pop(),
             ),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                tooltip: 'Reminders',
+                onPressed: () =>
+                    context.push('/activity/${activity.id}/notifications'),
+              ),
               IconButton(
                 icon: const Icon(Icons.edit_outlined),
                 onPressed: () => _openEditSheet(context, ref),
@@ -593,6 +600,9 @@ class _PhotoCheckIn extends ConsumerWidget {
     final result = await notifier.checkIn(
       activity.id, dateKey, activity.dailyCheckInTarget, photoPath: savedPath);
     if (!context.mounted || result == null) return;
+    NotificationService.instance.onActivityCompletedToday(
+        activity.id, activity.name, activity.requiresPhoto,
+        activity.dailyCheckInTarget);
     await showAndSaveNote(context, ref,
         activityId: activity.id,
         dateKey: dateKey,
@@ -1353,6 +1363,8 @@ class _MonthCalendar extends ConsumerWidget {
             } else {
               final result = await notifier.checkIn(activity.id, key, target);
               if (!ctx.mounted || result == null) return;
+              NotificationService.instance.onActivityCompletedToday(
+                  activity.id, activity.name, activity.requiresPhoto, target);
               await showDayCompletionToast(ctx, ref, result, activity: activity, dateKey: key);
             }
           },

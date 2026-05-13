@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/services/notification_service.dart';
 import '../../core/utils/date_utils.dart';
 import '../../data/models/activity.dart';
 import '../../providers/analytics_provider.dart';
@@ -305,6 +306,8 @@ class _CheckInButton extends ConsumerWidget {
 
       final result = await notifier.checkIn(activity.id, dateKey, target, photoPath: savedPath);
       if (!context.mounted || result == null) return;
+      NotificationService.instance.onActivityCompletedToday(
+          activity.id, activity.name, activity.requiresPhoto, target);
       await showAndSaveNote(context, ref,
           activityId: activity.id, dateKey: dateKey, color: color);
       if (!context.mounted) return;
@@ -312,6 +315,8 @@ class _CheckInButton extends ConsumerWidget {
     } else {
       final result = await notifier.checkIn(activity.id, dateKey, target);
       if (!context.mounted || result == null) return;
+      NotificationService.instance.onActivityCompletedToday(
+          activity.id, activity.name, activity.requiresPhoto, target);
       await showDayCompletionToast(context, ref, result, activity: activity, dateKey: dateKey);
     }
   }

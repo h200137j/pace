@@ -13,6 +13,7 @@ import 'ui/screens/detail/montage_screen.dart';
 import 'ui/screens/gamification/badges_screen.dart';
 import 'ui/screens/gamification/trophies_screen.dart';
 import 'ui/screens/detail/photo_gallery_screen.dart';
+import 'ui/screens/detail/activity_notifications_screen.dart';
 import 'ui/screens/onboarding/onboarding_screen.dart';
 import 'ui/screens/settings/about_screen.dart';
 import 'ui/screens/home/home_screen.dart';
@@ -55,6 +56,13 @@ GoRouter makeRouter({bool showOnboarding = false}) {
                   activityId: int.parse(state.pathParameters['id']!),
                 ),
                 routes: [
+                  GoRoute(
+                    path: 'notifications',
+                    builder: (_, state) => ActivityNotificationsScreen(
+                      activityId:
+                          int.parse(state.pathParameters['id']!),
+                    ),
+                  ),
                   GoRoute(
                     path: 'achievements',
                     builder: (_, state) => ChallengeAchievementsScreen(
