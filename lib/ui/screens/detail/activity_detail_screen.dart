@@ -422,9 +422,12 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
           SliverList(
             delegate: SliverChildBuilderDelegate(
               (context, index) {
-                final monthDate = DateTime(DateTime.now().year, index + 1, 1);
-
-                if (index >= 12) return null;
+                // Current month first, then descend to January.
+                final now = DateTime.now();
+                final totalMonths = now.month;
+                if (index >= totalMonths) return null;
+                final monthDate =
+                    DateTime(now.year, now.month - index, 1);
 
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -1274,7 +1277,28 @@ class _MonthCalendar extends ConsumerWidget {
 
     final completionsMap = ref.watch(completionMapProvider(activity.id));
 
-    return GridView.builder(
+    const dowLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Day-of-week header
+        Row(
+          children: dowLabels.map((d) => Expanded(
+            child: Center(
+              child: Text(
+                d,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant
+                      .withValues(alpha: 0.6),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          )).toList(),
+        ),
+        const SizedBox(height: 6),
+        GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -1362,6 +1386,8 @@ class _MonthCalendar extends ConsumerWidget {
           ),
         );
       },
+    ),
+      ],
     );
   }
 
