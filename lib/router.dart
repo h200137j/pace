@@ -12,6 +12,7 @@ import 'ui/screens/detail/challenge_easter_eggs_screen.dart';
 import 'ui/screens/detail/montage_screen.dart';
 import 'ui/screens/gamification/badges_screen.dart';
 import 'ui/screens/gamification/trophies_screen.dart';
+import 'ui/screens/detail/photo_gallery_screen.dart';
 import 'ui/screens/settings/about_screen.dart';
 import 'ui/screens/home/home_screen.dart';
 import 'ui/screens/settings/settings_screen.dart';
@@ -60,6 +61,12 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'montage',
                   builder: (_, state) => MontageScreen(
+                    activityId: int.parse(state.pathParameters['id']!),
+                  ),
+                ),
+                GoRoute(
+                  path: 'gallery',
+                  builder: (_, state) => PhotoGalleryScreen(
                     activityId: int.parse(state.pathParameters['id']!),
                   ),
                 ),

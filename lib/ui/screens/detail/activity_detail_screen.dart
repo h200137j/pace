@@ -350,6 +350,9 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                 color: color,
                 progress: challengeProgress,
                 radarHint: eggHint?.eggAlreadyFound == false ? eggHint?.message : null,
+                onViewGallery: (activity.requiresPhoto || photoCompletions > 0)
+                    ? () => context.push('/activity/${activity.id}/gallery')
+                    : null,
                 onViewMontage: (activity.requiresPhoto || photoCompletions > 0)
                     ? () => context.push('/activity/${activity.id}/montage')
                     : null,
@@ -695,6 +698,7 @@ class _ChallengeProgressCard extends StatelessWidget {
     this.onViewAchievements,
     this.onViewEasterEggs,
     this.onViewMontage,
+    this.onViewGallery,
   });
 
   final Color color;
@@ -703,6 +707,7 @@ class _ChallengeProgressCard extends StatelessWidget {
   final VoidCallback? onViewAchievements;
   final VoidCallback? onViewEasterEggs;
   final VoidCallback? onViewMontage;
+  final VoidCallback? onViewGallery;
 
   @override
   Widget build(BuildContext context) {
@@ -803,15 +808,29 @@ class _ChallengeProgressCard extends StatelessWidget {
               ),
             ),
           ],
-          if (onViewMontage != null) ...[
+          if (onViewGallery != null || onViewMontage != null) ...[
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onViewMontage,
-                icon: const Icon(Icons.movie_creation_rounded),
-                label: const Text('View Photo Montage'),
-              ),
+            Row(
+              children: [
+                if (onViewGallery != null)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onViewGallery,
+                      icon: const Icon(Icons.photo_library_rounded),
+                      label: const Text('Photo Journal'),
+                    ),
+                  ),
+                if (onViewGallery != null && onViewMontage != null)
+                  const SizedBox(width: 8),
+                if (onViewMontage != null)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onViewMontage,
+                      icon: const Icon(Icons.movie_creation_rounded),
+                      label: const Text('Montage'),
+                    ),
+                  ),
+              ],
             ),
           ],
           if (onViewAchievements != null) ...[

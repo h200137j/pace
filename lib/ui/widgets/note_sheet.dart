@@ -23,16 +23,40 @@ Future<void> showAndSaveNote(
       .updateNote(activityId, dateKey, note);
 }
 
+/// Edit an existing note (pre-filled with current text).
+Future<void> showEditNoteDialog(
+  BuildContext context,
+  WidgetRef ref, {
+  required int activityId,
+  required String dateKey,
+  required Color color,
+  String? initialNote,
+}) async {
+  if (!context.mounted) return;
+  final note = await showDialog<String>(
+    context: context,
+    barrierColor: Colors.black54,
+    builder: (ctx) =>
+        _NoteDialog(color: color, initialNote: initialNote),
+  );
+  if (note == null) return; // cancelled — don't clear existing note
+  if (!context.mounted) return;
+  await ref
+      .read(completionRepositoryProvider)
+      .updateNote(activityId, dateKey, note.trim().isEmpty ? null : note);
+}
+
 class _NoteDialog extends StatefulWidget {
-  const _NoteDialog({required this.color});
+  const _NoteDialog({required this.color, this.initialNote});
   final Color color;
+  final String? initialNote;
 
   @override
   State<_NoteDialog> createState() => _NoteDialogState();
 }
 
 class _NoteDialogState extends State<_NoteDialog> {
-  final _ctrl = TextEditingController();
+  late final _ctrl = TextEditingController(text: widget.initialNote ?? '');
 
   @override
   void dispose() {

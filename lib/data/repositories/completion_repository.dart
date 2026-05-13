@@ -86,6 +86,19 @@ class CompletionRepository {
     await _db.writeTxn(() => _col.put(c));
   }
 
+  Future<void> updatePhoto(
+      int activityId, String dateKey, String? newPhotoPath) async {
+    final existing = await _col
+        .where()
+        .filter()
+        .activityIdEqualTo(activityId)
+        .dateKeyEqualTo(dateKey)
+        .findFirst();
+    if (existing == null) return;
+    existing.photoPath = newPhotoPath;
+    await _db.writeTxn(() => _col.put(existing));
+  }
+
   Future<void> updateNote(int activityId, String dateKey, String? note) async {
     final existing = await _col
         .where()
