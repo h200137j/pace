@@ -8,7 +8,12 @@ import '../../../core/utils/date_utils.dart';
 import '../../../data/models/activity.dart';
 import '../../../providers/activity_provider.dart';
 import '../../../providers/completion_provider.dart';
+import '../../../providers/gamification_provider.dart';
 import '../../widgets/contribution_grid.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Root screen
+// ─────────────────────────────────────────────────────────────────────────────
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -60,6 +65,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
               ],
             ),
           ),
+          // Enhancement 1 — Lifetime Stats Row
+          const SliverToBoxAdapter(child: _LifetimeStatsSliver()),
         ],
         body: activitiesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -77,6 +84,106 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enhancement 1 — Lifetime Stats Sliver
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LifetimeStatsSliver extends ConsumerWidget implements PreferredSizeWidget {
+  const _LifetimeStatsSliver();
+
+  @override
+  Size get preferredSize => const Size.fromHeight(56);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(gamificationProfileProvider).valueOrNull;
+    final badges = ref.watch(badgeUnlocksProvider).valueOrNull ?? [];
+    final trophies = ref.watch(trophyUnlocksProvider).valueOrNull ?? [];
+
+    final badgeCount = badges.where((b) => b.unlockedAt != null).length;
+    final trophyCount = trophies.where((t) => t.unlockedAt != null).length;
+
+    final photoCount = profile?.lifetimePhotoCompletions ?? 0;
+
+    final chips = [
+      _StatChipData(label: 'Level', value: '${profile?.currentLevel ?? 0}'),
+      _StatChipData(label: 'Total XP', value: _formatNumber(profile?.totalXp ?? 0)),
+      _StatChipData(label: 'Completions', value: _formatNumber(profile?.lifetimeCompletions ?? 0)),
+      if (photoCount > 0)
+        _StatChipData(label: '📷 Photos', value: '$photoCount'),
+      if (badgeCount > 0)
+        _StatChipData(label: 'Badges', value: '$badgeCount'),
+      if (trophyCount > 0)
+        _StatChipData(label: 'Trophies', value: '$trophyCount'),
+    ];
+
+    return SizedBox(
+      height: preferredSize.height,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) => _StatChip(data: chips[i]),
+      ),
+    );
+  }
+
+  static String _formatNumber(int n) {
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
+    return '$n';
+  }
+}
+
+class _StatChipData {
+  const _StatChipData({required this.label, required this.value});
+  final String label;
+  final String value;
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.data});
+  final _StatChipData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            data.label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            data.value,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF00F2FF),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Week tab
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _WeekTab extends ConsumerWidget {
   const _WeekTab({required this.activities});
@@ -96,6 +203,9 @@ class _WeekTab extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
       children: [
+        // Enhancement 2 — Today's Progress card (first item)
+        _TodayCard(activities: activities),
+        const SizedBox(height: 16),
         _InsightCard(
           title: 'Weekly Completion Load',
           subtitle:
@@ -118,6 +228,129 @@ class _WeekTab extends ConsumerWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enhancement 2 — Today's Progress card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TodayCard extends ConsumerWidget {
+  const _TodayCard({required this.activities});
+  final List<Activity> activities;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final today = PaceDateUtils.todayKey();
+
+    final doneFlags = [
+      for (final a in activities)
+        (ref.watch(completionsForActivityProvider(a.id)).valueOrNull ?? [])
+            .any((c) => c.dateKey == today),
+    ];
+
+    final doneCount = doneFlags.where((d) => d).length;
+    final total = activities.length;
+    final progress = total == 0 ? 0.0 : doneCount / total;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13131E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                "Today's Progress",
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const Spacer(),
+              Text(
+                '$doneCount / $total done',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF00F2FF),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: theme.colorScheme.outline.withValues(alpha: 0.15),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Color.lerp(
+                  Colors.orange.shade400,
+                  Colors.green.shade400,
+                  progress,
+                )!,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < activities.length; i++)
+                _ActivityDotChip(
+                  activity: activities[i],
+                  done: doneFlags[i],
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityDotChip extends StatelessWidget {
+  const _ActivityDotChip({required this.activity, required this.done});
+  final Activity activity;
+  final bool done;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Color(activity.colorValue);
+    final effectiveColor = done ? color : color.withValues(alpha: 0.3);
+
+    return Tooltip(
+      message: activity.name,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: effectiveColor.withValues(alpha: done ? 0.18 : 0.07),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: effectiveColor,
+            width: done ? 2 : 1,
+          ),
+        ),
+        child: Icon(
+          IconData(activity.iconCodePoint, fontFamily: 'MaterialIcons'),
+          color: effectiveColor,
+          size: 15,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Month tab
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _MonthTab extends ConsumerWidget {
   const _MonthTab({required this.activities});
@@ -144,6 +377,9 @@ class _MonthTab extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
+        // Enhancement 3 — Photo Insights card (after consistency curve)
+        _PhotoInsightCard(activities: activities),
+        const SizedBox(height: 16),
         _InsightCard(
           title: 'Activity Comparison',
           subtitle: 'Completion percentage in the last 30 days',
@@ -166,6 +402,189 @@ class _MonthTab extends ConsumerWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Enhancement 3 — Photo Insights card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PhotoInsightCard extends ConsumerWidget {
+  const _PhotoInsightCard({required this.activities});
+  final List<Activity> activities;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final now = PaceDateUtils.toDateOnly(DateTime.now());
+    final cutoff = now.subtract(const Duration(days: 29));
+
+    // Aggregate completions across all activities for the last 30 days
+    int totalCompletions = 0;
+    int photoCompletions = 0;
+    int noteCompletions = 0;
+
+    // Map dateKey -> bool (had a photo that day)
+    final photoByDay = <String, bool>{};
+
+    for (final a in activities) {
+      final completions =
+          ref.watch(completionsForActivityProvider(a.id)).valueOrNull ?? [];
+      for (final c in completions) {
+        final date = DateTime.tryParse(c.dateKey);
+        if (date == null) continue;
+        final d = DateTime.utc(date.year, date.month, date.day);
+        if (d.isBefore(cutoff)) continue;
+
+        totalCompletions++;
+        if (c.photoPath != null) {
+          photoCompletions++;
+          photoByDay[c.dateKey] = true;
+        }
+        if (c.note != null && c.note!.trim().isNotEmpty) {
+          noteCompletions++;
+        }
+      }
+    }
+
+    // No photo data at all — card irrelevant, hide it.
+    if (photoCompletions == 0) return const SizedBox.shrink();
+
+    final photoRate = totalCompletions == 0
+        ? 0.0
+        : photoCompletions / totalCompletions;
+
+    final photoStreak = _longestPhotoStreak(photoByDay, cutoff, now);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13131E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Photo Insights',
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Last 30 days across all activities',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _PhotoStatTile(
+                  icon: Icons.photo_camera_outlined,
+                  label: 'Photo rate',
+                  value: '${(photoRate * 100).toStringAsFixed(0)}%',
+                  color: const Color(0xFF00F2FF),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _PhotoStatTile(
+                  icon: Icons.notes_outlined,
+                  label: 'Notes written',
+                  value: '$noteCompletions',
+                  color: Colors.amber.shade400,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _PhotoStatTile(
+                  icon: Icons.local_fire_department_outlined,
+                  label: 'Photo streak',
+                  value: '${photoStreak}d',
+                  color: Colors.deepOrange.shade400,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static int _longestPhotoStreak(
+    Map<String, bool> photoByDay,
+    DateTime cutoff,
+    DateTime now,
+  ) {
+    final range = PaceDateUtils.dateRange(cutoff, now);
+    int longest = 0;
+    int current = 0;
+    for (final d in range) {
+      final key = PaceDateUtils.toDateKey(d);
+      if (photoByDay.containsKey(key)) {
+        current++;
+        if (current > longest) longest = current;
+      } else {
+        current = 0;
+      }
+    }
+    return longest;
+  }
+}
+
+class _PhotoStatTile extends StatelessWidget {
+  const _PhotoStatTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Year tab
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _YearTab extends ConsumerStatefulWidget {
   const _YearTab({required this.activities});
   final List<Activity> activities;
@@ -176,6 +595,8 @@ class _YearTab extends ConsumerStatefulWidget {
 
 class _YearTabState extends ConsumerState<_YearTab> {
   int _selectedIndex = 0;
+  // Enhancement 5 — Photo vs All toggle
+  bool _showPhotosOnly = false;
 
   @override
   Widget build(BuildContext context) {
@@ -186,9 +607,21 @@ class _YearTabState extends ConsumerState<_YearTab> {
     final selected = widget.activities[_selectedIndex];
     final color = Color(selected.colorValue);
 
-    final completionsAsync = ref.watch(completionsForActivityProvider(selected.id));
-    final dateKeys = completionsAsync.valueOrNull?.map((c) => c.dateKey).toSet() ?? {};
-    final monthlyRate = _buildMonthlyRateForSingleActivity(dateKeys);
+    final completionsAsync =
+        ref.watch(completionsForActivityProvider(selected.id));
+    final allCompletions = completionsAsync.valueOrNull ?? [];
+
+    // Enhancement 5 — filter dateKeys based on toggle
+    final dateKeys = _showPhotosOnly
+        ? allCompletions
+            .where((c) => c.photoPath != null)
+            .map((c) => c.dateKey)
+            .toSet()
+        : allCompletions.map((c) => c.dateKey).toSet();
+
+    final monthlyRate = _buildMonthlyRateForSingleActivity(
+      allCompletions.map((c) => c.dateKey).toSet(),
+    );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
@@ -211,10 +644,32 @@ class _YearTabState extends ConsumerState<_YearTab> {
             },
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        // Enhancement 5 — Photo toggle only shown when activity has photos
+        if (allCompletions.any((c) => c.photoPath != null))
+        Align(
+          alignment: Alignment.centerRight,
+          child: SegmentedButton<bool>(
+            style: SegmentedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              textStyle: Theme.of(context).textTheme.labelSmall,
+            ),
+            segments: const [
+              ButtonSegment(value: false, label: Text('All')),
+              ButtonSegment(value: true, label: Text('Photos')),
+            ],
+            selected: {_showPhotosOnly},
+            onSelectionChanged: (s) =>
+                setState(() => _showPhotosOnly = s.first),
+            showSelectedIcon: false,
+          ),
+        ),
+        const SizedBox(height: 8),
         _InsightCard(
           title: '52-Week Heatmap',
-          subtitle: 'Daily completion footprint for ${selected.name}',
+          subtitle: _showPhotosOnly
+              ? 'Photo completion footprint for ${selected.name}'
+              : 'Daily completion footprint for ${selected.name}',
           child: ContributionGrid(
             dateKeys: dateKeys,
             color: color,
@@ -222,6 +677,9 @@ class _YearTabState extends ConsumerState<_YearTab> {
             endDate: DateTime(DateTime.now().year, 12, 31),
           ),
         ),
+        const SizedBox(height: 16),
+        // Enhancement 4 — Monthly XP chart
+        _MonthlyXpChart(color: color),
         const SizedBox(height: 16),
         _InsightCard(
           title: 'Monthly Consistency',
@@ -235,6 +693,127 @@ class _YearTabState extends ConsumerState<_YearTab> {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enhancement 4 — Monthly XP chart
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MonthlyXpChart extends ConsumerWidget {
+  const _MonthlyXpChart({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final events = ref.watch(xpEventsProvider).valueOrNull ?? [];
+    final now = DateTime.now();
+
+    // Group totalAwardedXp by month for the current year
+    final monthlyXp = List<int>.filled(12, 0);
+    for (final e in events) {
+      if (e.awardedAt.year == now.year) {
+        final monthIdx = e.awardedAt.month - 1;
+        monthlyXp[monthIdx] += e.totalAwardedXp;
+      }
+    }
+
+    final maxXp = monthlyXp.reduce(math.max);
+
+    return _InsightCard(
+      title: 'Monthly XP Earned',
+      subtitle: 'XP awarded per month (this year)',
+      child: SizedBox(
+        height: 220,
+        child: BarChart(
+          BarChartData(
+            maxY: (maxXp == 0 ? 100 : maxXp * 1.2).toDouble(),
+            gridData: FlGridData(
+              show: true,
+              drawVerticalLine: false,
+              horizontalInterval:
+                  (maxXp == 0 ? 100 : maxXp * 1.2 / 4).toDouble(),
+              getDrawingHorizontalLine: (_) => FlLine(
+                color: theme.colorScheme.outline.withValues(alpha: 0.12),
+                strokeWidth: 1,
+              ),
+            ),
+            borderData: FlBorderData(show: false),
+            titlesData: FlTitlesData(
+              rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false)),
+              topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false)),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 38,
+                  getTitlesWidget: (v, _) {
+                    if (v == 0) return const SizedBox.shrink();
+                    final label = v >= 1000
+                        ? '${(v / 1000).toStringAsFixed(1)}k'
+                        : v.toInt().toString();
+                    return Text(label,
+                        style: theme.textTheme.labelSmall);
+                  },
+                ),
+              ),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  getTitlesWidget: (value, _) {
+                    const months = [
+                      'J', 'F', 'M', 'A', 'M', 'J',
+                      'J', 'A', 'S', 'O', 'N', 'D'
+                    ];
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(months[value.toInt()],
+                          style: theme.textTheme.labelSmall),
+                    );
+                  },
+                ),
+              ),
+            ),
+            barTouchData: BarTouchData(
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipItem: (group, _, rod, __) {
+                  const months = [
+                    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+                  ];
+                  return BarTooltipItem(
+                    '${months[group.x.toInt()]}\n${rod.toY.toInt()} XP',
+                    const TextStyle(fontWeight: FontWeight.w700),
+                  );
+                },
+              ),
+            ),
+            barGroups: List.generate(12, (i) {
+              final isFuture = i >= now.month;
+              return BarChartGroupData(
+                x: i,
+                barRods: [
+                  BarChartRodData(
+                    toY: monthlyXp[i].toDouble(),
+                    width: 16,
+                    borderRadius: BorderRadius.circular(8),
+                    color: isFuture
+                        ? color.withValues(alpha: 0.25)
+                        : color,
+                  ),
+                ],
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared card shell
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _InsightCard extends StatelessWidget {
   const _InsightCard({
@@ -278,6 +857,10 @@ class _InsightCard extends StatelessWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Existing chart widgets (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _WeeklyLoadChart extends StatelessWidget {
   const _WeeklyLoadChart({required this.completedPerDay, required this.activityCount});
@@ -812,6 +1395,10 @@ class _MonthlyRateChart extends StatelessWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper functions (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
 
 List<bool> _boolSeriesForActivity(WidgetRef ref, int activityId, int days) {
   final map = ref.watch(completionsForActivityProvider(activityId)).valueOrNull ?? [];
