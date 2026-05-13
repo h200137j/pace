@@ -40,6 +40,7 @@ class ActivityRepository {
     ActivityDifficulty difficulty = ActivityDifficulty.medium,
     int targetDaysMask = 127, // every day
     bool requiresPhoto = false,
+    int dailyCheckInTarget = 1,
     DateTime? challengeEndDate,
     bool endDateUserSelected = false,
   }) async {
@@ -71,6 +72,7 @@ class ActivityRepository {
       ..difficulty = difficulty
       ..targetDaysMask = targetDaysMask
       ..requiresPhoto = requiresPhoto
+      ..dailyCheckInTarget = dailyCheckInTarget
       ..startDate = type == ActivityType.challenge ? startDate : null
       ..endDate = resolvedEndDate
       ..endDateUserSelected = type == ActivityType.challenge && endDateUserSelected

@@ -15,6 +15,9 @@ class Completion {
   @Index(composite: [CompositeIndex('activityId')], unique: true)
   late String dateKey;
 
+  /// How many check-ins logged for this dateKey. Full = checkInCount >= Activity.dailyCheckInTarget.
+  int checkInCount = 1;
+
   /// When the user actually tapped "done".
   late DateTime completedAt;
 

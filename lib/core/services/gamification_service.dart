@@ -42,8 +42,13 @@ class GamificationService {
     required int activityId,
     required String dateKey,
     required bool hasPhoto,
+    int checkInNumber = 1,
+    int dailyCheckInTarget = 1,
   }) async {
-    final eventKey = 'completion:$activityId:$dateKey';
+    // Unique event key per check-in for multi-check-in activities.
+    final eventKey = dailyCheckInTarget > 1
+        ? 'completion:$activityId:$dateKey:$checkInNumber'
+        : 'completion:$activityId:$dateKey';
     final existingEvent = await _gamificationRepository.getEventByKey(eventKey);
     if (existingEvent != null) {
       return const XpAwardOutcome(awardedXp: 0);
@@ -55,7 +60,8 @@ class GamificationService {
     }
 
     const baseXp = XpConfig.completionBaseXp;
-    final bonusXp = hasPhoto ? XpConfig.photoBonusXp : 0;
+    // Photo bonus only on first check-in to avoid double-counting.
+    final bonusXp = hasPhoto && checkInNumber == 1 ? XpConfig.photoBonusXp : 0;
     final multiplier = XpConfig.multiplierFor(activity.difficulty);
     final challengeMultiplier = activity.type == ActivityType.challenge
       ? ChallengeRewardService.challengeLengthMultiplier(
@@ -71,8 +77,14 @@ class GamificationService {
             ).durationDays,
         )
       : 1.0;
-    final totalAwardedXp =
-      ((baseXp + bonusXp) * multiplier * challengeMultiplier).round();
+    final fullXp = ((baseXp + bonusXp) * multiplier * challengeMultiplier).round();
+
+    // Split XP proportionally across check-ins. Last check-in gets the remainder.
+    final isLastCheckIn = checkInNumber >= dailyCheckInTarget;
+    final perCheckInXp = dailyCheckInTarget > 1 ? fullXp ~/ dailyCheckInTarget : fullXp;
+    final totalAwardedXp = isLastCheckIn
+        ? fullXp - (dailyCheckInTarget - 1) * perCheckInXp
+        : perCheckInXp;
 
     final profile = await _gamificationRepository.getOrCreateProfile();
     final badges = await _gamificationRepository.getAllBadges();
@@ -87,9 +99,12 @@ class GamificationService {
       .map((t) => t.trophyKey)
       .toSet();
 
-    _updateProfile(profile, totalAwardedXp, hasPhoto: hasPhoto);
-    _evaluateBadges(profile, badges);
-    _evaluateTrophies(profile, badges, trophies);
+    // Increment lifetimeCompletions and evaluate badges/trophies only on full completion.
+    _updateProfile(profile, totalAwardedXp, hasPhoto: hasPhoto, isFullCompletion: isLastCheckIn);
+    if (isLastCheckIn) {
+      _evaluateBadges(profile, badges);
+      _evaluateTrophies(profile, badges, trophies);
+    }
 
     final xpEvent = XpEvent()
       ..eventKey = eventKey
@@ -138,11 +153,14 @@ class GamificationService {
     GamificationProfile profile,
     int gainedXp, {
     required bool hasPhoto,
+    bool isFullCompletion = true,
   }) {
     profile.totalXp += gainedXp;
-    profile.lifetimeCompletions += 1;
-    if (hasPhoto) {
-      profile.lifetimePhotoCompletions += 1;
+    if (isFullCompletion) {
+      profile.lifetimeCompletions += 1;
+      if (hasPhoto) {
+        profile.lifetimePhotoCompletions += 1;
+      }
     }
 
     final resolved = LevelCurve.resolveLevelFromXp(profile.totalXp);

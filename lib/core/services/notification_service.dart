@@ -17,9 +17,9 @@ void notificationTapBackground(NotificationResponse notificationResponse) async 
         // Initialize Isar for background isolate
         await IsarService.instance.init();
         
-        // Mark as done
+        // Mark first check-in via notification (full cycle handled in-app).
         final repo = CompletionRepository();
-        await repo.toggle(activityId, PaceDateUtils.todayKey());
+        await repo.checkIn(activityId, PaceDateUtils.todayKey(), 1);
         
         // Cancel the notification
         final plugin = FlutterLocalNotificationsPlugin();

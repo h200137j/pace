@@ -26,6 +26,7 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
   int _iconCodePoint = AppIcons.activityIcons.first.icon.codePoint;
   int _targetDaysMask = 127; // all days
   bool _requiresPhoto = false;
+  int _dailyCheckInTarget = 1;
   DateTime? _challengeEndDate;
   bool _endDateUserSelected = false;
 
@@ -41,6 +42,7 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
       _iconCodePoint = a.iconCodePoint;
       _targetDaysMask = a.targetDaysMask;
       _requiresPhoto = a.requiresPhoto;
+      _dailyCheckInTarget = a.dailyCheckInTarget;
       _challengeEndDate = a.endDate;
       _endDateUserSelected = a.endDateUserSelected;
     }
@@ -99,7 +101,8 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
         ..colorValue = _color.toARGB32()
         ..iconCodePoint = _iconCodePoint
         ..targetDaysMask = _targetDaysMask
-        ..requiresPhoto = _requiresPhoto;
+        ..requiresPhoto = _requiresPhoto
+        ..dailyCheckInTarget = _dailyCheckInTarget;
 
       if (_type == ActivityType.challenge && act.endDate == null) {
         act
@@ -118,6 +121,7 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
         iconCodePoint: _iconCodePoint,
         targetDaysMask: _targetDaysMask,
         requiresPhoto: _requiresPhoto,
+        dailyCheckInTarget: _dailyCheckInTarget,
         challengeEndDate: _type == ActivityType.challenge
             ? _challengeEndDate ?? _defaultYearEnd()
             : null,
@@ -283,6 +287,25 @@ class _CreateActivitySheetState extends ConsumerState<CreateActivitySheet> {
               ),
             ),
             const SizedBox(height: 20),
+
+            // ── Daily Check-ins ───────────────────────────────────────────
+            if (_type != ActivityType.focus) ...[
+              Text('Daily Check-ins', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 8),
+              _CheckInTargetSelector(
+                selected: _dailyCheckInTarget,
+                color: _color,
+                onChanged: (v) => setState(() => _dailyCheckInTarget = v),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'How many check-ins count as one full completion per day.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
 
             // ── Color Picker ──────────────────────────────────────────────
             Text('Color', style: theme.textTheme.labelLarge),
@@ -508,6 +531,100 @@ class _IconPicker extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _CheckInTargetSelector extends StatelessWidget {
+  const _CheckInTargetSelector({
+    required this.selected,
+    required this.color,
+    required this.onChanged,
+  });
+
+  final int selected;
+  final Color color;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _StepButton(
+          icon: Icons.remove_rounded,
+          color: color,
+          enabled: selected > 1,
+          onTap: () => onChanged(selected - 1),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            height: 44,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: 0.12),
+              border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '$selected×',
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        _StepButton(
+          icon: Icons.add_rounded,
+          color: color,
+          enabled: true,
+          onTap: () => onChanged(selected + 1),
+        ),
+      ],
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  const _StepButton({
+    required this.icon,
+    required this.color,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: enabled ? color.withValues(alpha: 0.15) : Colors.transparent,
+          border: Border.all(
+            color: enabled ? color.withValues(alpha: 0.4) : Theme.of(context).colorScheme.outlineVariant,
+            width: 1.5,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          icon,
+          color: enabled ? color : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+          size: 20,
+        ),
       ),
     );
   }

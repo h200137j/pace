@@ -31,7 +31,9 @@ class ActivityCard extends ConsumerWidget {
     final color = Color(activity.colorValue);
     final icon = IconData(activity.iconCodePoint, fontFamily: 'MaterialIcons');
 
-    final isDoneToday = ref.watch(todayDoneProvider(activity.id));
+    final target = activity.dailyCheckInTarget;
+    final checkInCount = ref.watch(todayCheckInCountProvider(activity.id));
+    final isDoneToday = checkInCount >= target;
     final streak = ref.watch(streakProvider(activity.id));
     final weeklyRates = ref.watch(weeklyRatesProvider(activity.id));
 
@@ -197,7 +199,7 @@ class ActivityCard extends ConsumerWidget {
                             const SizedBox(width: 8),
                             _CheckInButton(
                               activity: activity,
-                              isDone: isDoneToday,
+                              checkInCount: checkInCount,
                               color: color,
                               weeklyRate: weeklyRate,
                             ),
@@ -265,28 +267,23 @@ class ActivityCard extends ConsumerWidget {
 class _CheckInButton extends ConsumerWidget {
   const _CheckInButton({
     required this.activity,
-    required this.isDone,
+    required this.checkInCount,
     required this.color,
     required this.weeklyRate,
   });
 
   final Activity activity;
-  final bool isDone;
+  final int checkInCount;
   final Color color;
   final double weeklyRate;
 
   Future<void> _handleTap(BuildContext context, WidgetRef ref) async {
     final notifier = ref.read(completionNotifierProvider.notifier);
     final dateKey = PaceDateUtils.todayKey();
+    final target = activity.dailyCheckInTarget;
 
-    if (isDone) {
-      // Toggle off
-      await notifier.toggle(activity.id, dateKey);
-      return;
-    }
-
-    if (activity.requiresPhoto) {
-      // Show picking options
+    // Photo prompt only on the very first check-in of the day
+    if (activity.requiresPhoto && checkInCount == 0) {
       ref.read(createSheetOpenProvider.notifier).state = true;
       final source = await showModalBottomSheet<bool>(
         context: context,
@@ -295,7 +292,7 @@ class _CheckInButton extends ConsumerWidget {
       );
       ref.read(createSheetOpenProvider.notifier).state = false;
 
-      if (source == null) return; // User cancelled
+      if (source == null) return;
 
       final file = await PhotoService.instance.pickImage(fromCamera: source);
       if (file == null) return;
@@ -306,34 +303,31 @@ class _CheckInButton extends ConsumerWidget {
         activity.id,
       );
 
-      final result =
-          await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+      final result = await notifier.checkIn(activity.id, dateKey, target, photoPath: savedPath);
       if (!context.mounted || result == null) return;
       await showAndSaveNote(context, ref,
           activityId: activity.id, dateKey: dateKey, color: color);
       if (!context.mounted) return;
-      await showDayCompletionToast(
-        context,
-        ref,
-        result,
-        activity: activity,
-        dateKey: dateKey,
-      );
+      await showDayCompletionToast(context, ref, result, activity: activity, dateKey: dateKey);
     } else {
-      final result = await notifier.toggle(activity.id, dateKey);
+      final result = await notifier.checkIn(activity.id, dateKey, target);
       if (!context.mounted || result == null) return;
-      await showDayCompletionToast(
-        context,
-        ref,
-        result,
-        activity: activity,
-        dateKey: dateKey,
-      );
+      await showDayCompletionToast(context, ref, result, activity: activity, dateKey: dateKey);
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final target = activity.dailyCheckInTarget;
+    final isDone = checkInCount >= target;
+    final isPartial = !isDone && checkInCount > 0;
+
+    final ringProgress = isDone
+        ? 1.0
+        : isPartial
+            ? checkInCount / target
+            : weeklyRate;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _handleTap(context, ref),
@@ -343,7 +337,7 @@ class _CheckInButton extends ConsumerWidget {
           duration: const Duration(milliseconds: 300),
           curve: Curves.elasticOut,
           child: ProgressRing(
-            progress: isDone ? 1.0 : weeklyRate,
+            progress: ringProgress,
             color: color,
             size: 52,
             strokeWidth: 4,
@@ -368,10 +362,20 @@ class _CheckInButton extends ConsumerWidget {
                 child: isDone
                     ? Icon(Icons.check_rounded,
                         key: const ValueKey('done'), color: color, size: 24)
-                    : Icon(Icons.add_rounded,
-                        key: const ValueKey('undone'),
-                        color: color.withOpacity(0.6),
-                        size: 20),
+                    : isPartial
+                        ? Text(
+                            '$checkInCount/$target',
+                            key: ValueKey('partial_$checkInCount'),
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          )
+                        : Icon(Icons.add_rounded,
+                            key: const ValueKey('undone'),
+                            color: color.withOpacity(0.6),
+                            size: 20),
               ),
             ),
           ),

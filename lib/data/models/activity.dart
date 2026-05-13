@@ -56,6 +56,9 @@ class Activity {
   /// Cached inclusive duration in days for challenge windows.
   int plannedDurationDays = 0;
 
+  /// How many check-ins required per day for one full completion.
+  int dailyCheckInTarget = 1;
+
   late DateTime createdAt;
 
   DateTime? archivedAt;

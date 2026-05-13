@@ -5,6 +5,7 @@ import '../core/utils/date_utils.dart';
 import '../data/models/completion.dart';
 import '../data/repositories/completion_repository.dart';
 import '../core/services/photo_service.dart';
+import 'activity_provider.dart';
 import 'gamification_provider.dart';
 
 // ── Repository Provider ────────────────────────────────────────────────────
@@ -21,12 +22,20 @@ final completionsForActivityProvider =
   return ref.watch(completionRepositoryProvider).watchForActivity(activityId);
 });
 
-/// Whether a specific activity is done today, derived from the stream.
-final todayDoneProvider = Provider.family<bool, int>((ref, activityId) {
+/// Today's check-in count for an activity (0 if no record).
+final todayCheckInCountProvider = Provider.family<int, int>((ref, activityId) {
   final completions =
       ref.watch(completionsForActivityProvider(activityId)).valueOrNull ?? [];
   final today = PaceDateUtils.todayKey();
-  return completions.any((c) => c.dateKey == today);
+  final matches = completions.where((c) => c.dateKey == today);
+  return matches.isEmpty ? 0 : matches.first.checkInCount;
+});
+
+/// Whether [activityId] is fully done today given [target] required check-ins.
+/// Param is (activityId, dailyCheckInTarget).
+final todayDoneProvider = Provider.family<bool, (int, int)>((ref, args) {
+  final (activityId, target) = args;
+  return ref.watch(todayCheckInCountProvider(activityId)) >= target;
 });
 
 /// Set of all dateKeys for an activity (used in streak calculator).
@@ -43,6 +52,17 @@ final completionMapProvider = Provider.family<Map<String, Completion>, int>((ref
   return {for (final c in completions) c.dateKey: c};
 });
 
+/// DateKeys of fully completed days (checkInCount >= activity.dailyCheckInTarget).
+final doneCompletionKeysProvider = Provider.family<Set<String>, int>((ref, activityId) {
+  final activity = ref.watch(activityByIdProvider(activityId)).valueOrNull;
+  final target = activity?.dailyCheckInTarget ?? 1;
+  final completions = ref.watch(completionsForActivityProvider(activityId)).valueOrNull ?? [];
+  return completions
+      .where((c) => c.checkInCount >= target)
+      .map((c) => c.dateKey)
+      .toSet();
+});
+
 // ── Notifier ───────────────────────────────────────────────────────────────
 
 class CompletionNotifier extends StateNotifier<AsyncValue<void>> {
@@ -52,22 +72,51 @@ class CompletionNotifier extends StateNotifier<AsyncValue<void>> {
   final CompletionRepository _repo;
   final GamificationService _gamificationService;
 
-  Future<XpAwardOutcome?> toggle(
+  Future<XpAwardOutcome?> checkIn(
     int activityId,
-    String dateKey, {
+    String dateKey,
+    int target, {
     String? photoPath,
   }) async {
     try {
-      final wasCompleted = await _repo.isCompleted(activityId, dateKey);
-      final deletedPhotoPath = await _repo.toggle(activityId, dateKey, photoPath: photoPath);
-      if (deletedPhotoPath != null) {
-        await PhotoService.instance.deleteImage(deletedPhotoPath);
+      final result = await _repo.checkIn(activityId, dateKey, target, photoPath: photoPath);
+      if (result.removedPhotoPath != null) {
+        await PhotoService.instance.deleteImage(result.removedPhotoPath!);
       }
-      if (!wasCompleted) {
+      // No XP on undo (checkInCount == 0).
+      if (result.checkInCount == 0) return null;
+      return _gamificationService.awardCompletionXp(
+        activityId: activityId,
+        dateKey: dateKey,
+        hasPhoto: photoPath != null,
+        checkInNumber: result.checkInCount,
+        dailyCheckInTarget: target,
+      );
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return null;
+    }
+  }
+
+  /// All-or-nothing toggle for calendar/history editing — completes fully in one tap or removes.
+  Future<XpAwardOutcome?> toggleFull(
+    int activityId,
+    String dateKey,
+    int target, {
+    String? photoPath,
+  }) async {
+    try {
+      final result = await _repo.toggleFull(activityId, dateKey, target, photoPath: photoPath);
+      if (result.removedPhotoPath != null) {
+        await PhotoService.instance.deleteImage(result.removedPhotoPath!);
+      }
+      if (result.isNowComplete) {
         return _gamificationService.awardCompletionXp(
           activityId: activityId,
           dateKey: dateKey,
           hasPhoto: photoPath != null,
+          checkInNumber: target,
+          dailyCheckInTarget: target,
         );
       }
       return null;
@@ -77,11 +126,11 @@ class CompletionNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<XpAwardOutcome?> markToday(int activityId, {String? photoPath}) async {
+  Future<XpAwardOutcome?> markToday(int activityId, {String? photoPath, int target = 1}) async {
     try {
       final key = PaceDateUtils.todayKey();
-      final wasCompleted = await _repo.isCompleted(activityId, key);
-      await _repo.markToday(activityId, photoPath: photoPath);
+      final wasCompleted = await _repo.isCompleted(activityId, key, target: target);
+      await _repo.markToday(activityId, photoPath: photoPath, target: target);
       if (!wasCompleted) {
         return _gamificationService.awardCompletionXp(
           activityId: activityId,

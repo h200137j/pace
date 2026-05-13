@@ -22,23 +22,28 @@ const CompletionSchema = CollectionSchema(
       name: r'activityId',
       type: IsarType.long,
     ),
-    r'completedAt': PropertySchema(
+    r'checkInCount': PropertySchema(
       id: 1,
+      name: r'checkInCount',
+      type: IsarType.long,
+    ),
+    r'completedAt': PropertySchema(
+      id: 2,
       name: r'completedAt',
       type: IsarType.dateTime,
     ),
     r'dateKey': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'dateKey',
       type: IsarType.string,
     ),
     r'note': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'note',
       type: IsarType.string,
     ),
     r'photoPath': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'photoPath',
       type: IsarType.string,
     )
@@ -118,10 +123,11 @@ void _completionSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeLong(offsets[0], object.activityId);
-  writer.writeDateTime(offsets[1], object.completedAt);
-  writer.writeString(offsets[2], object.dateKey);
-  writer.writeString(offsets[3], object.note);
-  writer.writeString(offsets[4], object.photoPath);
+  writer.writeLong(offsets[1], object.checkInCount);
+  writer.writeDateTime(offsets[2], object.completedAt);
+  writer.writeString(offsets[3], object.dateKey);
+  writer.writeString(offsets[4], object.note);
+  writer.writeString(offsets[5], object.photoPath);
 }
 
 Completion _completionDeserialize(
@@ -132,11 +138,12 @@ Completion _completionDeserialize(
 ) {
   final object = Completion();
   object.activityId = reader.readLong(offsets[0]);
-  object.completedAt = reader.readDateTime(offsets[1]);
-  object.dateKey = reader.readString(offsets[2]);
+  object.checkInCount = reader.readLong(offsets[1]);
+  object.completedAt = reader.readDateTime(offsets[2]);
+  object.dateKey = reader.readString(offsets[3]);
   object.id = id;
-  object.note = reader.readStringOrNull(offsets[3]);
-  object.photoPath = reader.readStringOrNull(offsets[4]);
+  object.note = reader.readStringOrNull(offsets[4]);
+  object.photoPath = reader.readStringOrNull(offsets[5]);
   return object;
 }
 
@@ -150,12 +157,14 @@ P _completionDeserializeProp<P>(
     case 0:
       return (reader.readLong(offset)) as P;
     case 1:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 2:
-      return (reader.readString(offset)) as P;
+      return (reader.readDateTime(offset)) as P;
     case 3:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 4:
+      return (reader.readStringOrNull(offset)) as P;
+    case 5:
       return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -627,6 +636,62 @@ extension CompletionQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'activityId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<Completion, Completion, QAfterFilterCondition>
+      checkInCountEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'checkInCount',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Completion, Completion, QAfterFilterCondition>
+      checkInCountGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'checkInCount',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Completion, Completion, QAfterFilterCondition>
+      checkInCountLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'checkInCount',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Completion, Completion, QAfterFilterCondition>
+      checkInCountBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'checkInCount',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -1195,6 +1260,18 @@ extension CompletionQuerySortBy
     });
   }
 
+  QueryBuilder<Completion, Completion, QAfterSortBy> sortByCheckInCount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'checkInCount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Completion, Completion, QAfterSortBy> sortByCheckInCountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'checkInCount', Sort.desc);
+    });
+  }
+
   QueryBuilder<Completion, Completion, QAfterSortBy> sortByCompletedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'completedAt', Sort.asc);
@@ -1255,6 +1332,18 @@ extension CompletionQuerySortThenBy
   QueryBuilder<Completion, Completion, QAfterSortBy> thenByActivityIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'activityId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Completion, Completion, QAfterSortBy> thenByCheckInCount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'checkInCount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Completion, Completion, QAfterSortBy> thenByCheckInCountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'checkInCount', Sort.desc);
     });
   }
 
@@ -1327,6 +1416,12 @@ extension CompletionQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Completion, Completion, QDistinct> distinctByCheckInCount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'checkInCount');
+    });
+  }
+
   QueryBuilder<Completion, Completion, QDistinct> distinctByCompletedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'completedAt');
@@ -1366,6 +1461,12 @@ extension CompletionQueryProperty
   QueryBuilder<Completion, int, QQueryOperations> activityIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'activityId');
+    });
+  }
+
+  QueryBuilder<Completion, int, QQueryOperations> checkInCountProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'checkInCount');
     });
   }
 

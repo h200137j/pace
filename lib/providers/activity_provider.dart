@@ -36,6 +36,7 @@ class ActivityNotifier extends StateNotifier<AsyncValue<void>> {
     required int iconCodePoint,
     int targetDaysMask = 127,
     bool requiresPhoto = false,
+    int dailyCheckInTarget = 1,
     DateTime? challengeEndDate,
     bool endDateUserSelected = false,
   }) async {
@@ -49,6 +50,7 @@ class ActivityNotifier extends StateNotifier<AsyncValue<void>> {
         iconCodePoint: iconCodePoint,
         targetDaysMask: targetDaysMask,
         requiresPhoto: requiresPhoto,
+        dailyCheckInTarget: dailyCheckInTarget,
         challengeEndDate: challengeEndDate,
         endDateUserSelected: endDateUserSelected,
       );

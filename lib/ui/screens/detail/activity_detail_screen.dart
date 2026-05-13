@@ -518,7 +518,8 @@ class _PhotoCheckIn extends ConsumerWidget {
     // Check if we already have a completion with a photo
     final completionsMap = ref.watch(completionMapProvider(activity.id));
     final todayCompletion = completionsMap[today];
-    final isDoneToday = todayCompletion != null;
+    final isDoneToday = todayCompletion != null &&
+        todayCompletion.checkInCount >= activity.dailyCheckInTarget;
     
     final color = Color(activity.colorValue);
 
@@ -589,8 +590,8 @@ class _PhotoCheckIn extends ConsumerWidget {
       activity.id,
     );
 
-    final result =
-        await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+    final result = await notifier.checkIn(
+      activity.id, dateKey, activity.dailyCheckInTarget, photoPath: savedPath);
     if (!context.mounted || result == null) return;
     await showAndSaveNote(context, ref,
         activityId: activity.id,
@@ -1334,33 +1335,25 @@ class _MonthCalendar extends ConsumerWidget {
         final key = PaceDateUtils.toDateKey(date);
         
         final completion = completionsMap[key];
-        final done = completion != null;
+        final checkInCount = completion?.checkInCount ?? 0;
+        final target = activity.dailyCheckInTarget;
+        final done = checkInCount >= target && completion != null;
         final hasPhoto = completion?.photoPath != null;
         final isToday = date == today;
+        final isPartial = checkInCount > 0 && !done;
 
         return InkWell(
           onTap: () async {
             if (date.isAfter(today)) return; // Can't mark future
-            
+
             final notifier = ref.read(completionNotifierProvider.notifier);
-            
-            if (!done) {
-              if (activity.requiresPhoto) {
-                // Trigger photo picker for strict requirement
-                await _triggerPicker(ctx, ref, date);
-              } else {
-                final result = await notifier.toggle(activity.id, key);
-                if (!ctx.mounted || result == null) return;
-                await showDayCompletionToast(
-                  ctx,
-                  ref,
-                  result,
-                  activity: activity,
-                  dateKey: key,
-                );
-              }
+
+            if (activity.requiresPhoto && checkInCount == 0) {
+              await _triggerPicker(ctx, ref, date, incremental: true);
             } else {
-              await notifier.toggle(activity.id, key);
+              final result = await notifier.checkIn(activity.id, key, target);
+              if (!ctx.mounted || result == null) return;
+              await showDayCompletionToast(ctx, ref, result, activity: activity, dateKey: key);
             }
           },
           borderRadius: BorderRadius.circular(100),
@@ -1370,10 +1363,10 @@ class _MonthCalendar extends ConsumerWidget {
               shape: BoxShape.circle,
               color: done && !hasPhoto
                   ? color
-                  : isToday && !done
+                  : (isToday || isPartial) && !done
                       ? color.withValues(alpha: 0.15)
                       : Colors.transparent,
-              border: isToday && !done
+              border: (isToday || isPartial) && !done
                   ? Border.all(color: color, width: 1.5)
                   : null,
               image: hasPhoto
@@ -1385,17 +1378,17 @@ class _MonthCalendar extends ConsumerWidget {
             ),
             child: Center(
               child: Text(
-                '$day',
+                isPartial ? '$checkInCount/$target' : '$day',
                 style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: done || isToday ? FontWeight.w700 : FontWeight.w400,
+                  fontWeight: done || isToday || isPartial ? FontWeight.w700 : FontWeight.w400,
                   color: (done && !hasPhoto)
                       ? Colors.white
-                      : isToday
+                      : isToday || isPartial
                           ? color
-                          : hasPhoto 
-                             ? Colors.white // White text on photo thumbnail
-                             : theme.colorScheme.onSurfaceVariant,
-                  fontSize: 11,
+                          : hasPhoto
+                              ? Colors.white
+                              : theme.colorScheme.onSurfaceVariant,
+                  fontSize: isPartial ? 9 : 11,
                   shadows: hasPhoto ? [
                     const Shadow(offset: Offset(0, 1), blurRadius: 2, color: Colors.black54)
                   ] : null,
@@ -1410,7 +1403,12 @@ class _MonthCalendar extends ConsumerWidget {
     );
   }
 
-  Future<void> _triggerPicker(BuildContext context, WidgetRef ref, DateTime date) async {
+  Future<void> _triggerPicker(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime date, {
+    bool incremental = false,
+  }) async {
     final notifier = ref.read(completionNotifierProvider.notifier);
     final dateKey = PaceDateUtils.toDateKey(date);
 
@@ -1433,8 +1431,9 @@ class _MonthCalendar extends ConsumerWidget {
       activity.id,
     );
 
-    final result =
-        await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
+    final result = incremental
+        ? await notifier.checkIn(activity.id, dateKey, activity.dailyCheckInTarget, photoPath: savedPath)
+        : await notifier.toggleFull(activity.id, dateKey, activity.dailyCheckInTarget, photoPath: savedPath);
     if (!context.mounted || result == null) return;
     await showAndSaveNote(context, ref,
         activityId: activity.id,
