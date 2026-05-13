@@ -209,6 +209,12 @@ class SettingsScreen extends ConsumerWidget {
               // ── About ─────────────────────────────────────────────────────
               const _SectionHeader('About'),
               _SettingsTile(
+                icon: Icons.play_circle_outline_rounded,
+                title: 'App Tour',
+                subtitle: 'Revisit the onboarding guide',
+                onTap: () => context.push('/onboarding', extra: true),
+              ),
+              _SettingsTile(
                 icon: Icons.info_outline_rounded,
                 title: 'About Pace',
                 subtitle: appInfo.when(

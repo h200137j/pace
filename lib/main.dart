@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/services/background_worker.dart';
@@ -7,9 +8,13 @@ import 'core/services/challenge_date_migration_service.dart';
 import 'core/services/gamification_migration_service.dart';
 import 'core/services/notification_service.dart';
 import 'data/services/isar_service.dart';
+import 'router.dart';
+import 'ui/screens/onboarding/onboarding_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  bool showOnboarding = false;
 
   try {
     // Initialise the Isar database before anything renders.
@@ -31,14 +36,20 @@ Future<void> main() async {
 
     // One-time migration: ensure legacy challenges default to year-end end dates.
     await ChallengeDateMigrationService.ensureMigratedOnce();
+
+    // Check if onboarding has been seen before.
+    final prefs = await SharedPreferences.getInstance();
+    showOnboarding = !(prefs.getBool(kOnboardingSeenKey) ?? false);
   } catch (e) {
     debugPrint('Initialization error: $e');
     // Still launch the app so the user sees something instead of a black screen.
   }
 
+  final router = makeRouter(showOnboarding: showOnboarding);
+
   runApp(
-    const ProviderScope(
-      child: PaceApp(),
+    ProviderScope(
+      child: PaceApp(router: router),
     ),
   );
 }

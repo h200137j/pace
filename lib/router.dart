@@ -13,6 +13,7 @@ import 'ui/screens/detail/montage_screen.dart';
 import 'ui/screens/gamification/badges_screen.dart';
 import 'ui/screens/gamification/trophies_screen.dart';
 import 'ui/screens/detail/photo_gallery_screen.dart';
+import 'ui/screens/onboarding/onboarding_screen.dart';
 import 'ui/screens/settings/about_screen.dart';
 import 'ui/screens/home/home_screen.dart';
 import 'ui/screens/settings/settings_screen.dart';
@@ -24,92 +25,101 @@ final _analyticsNavigatorKey =
 final _settingsNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'settings');
 
-final appRouter = GoRouter(
-  navigatorKey: _rootNavigatorKey,
-  initialLocation: '/home',
-  routes: [
-    StatefulShellRoute.indexedStack(
-      builder: (ctx, state, shell) => Consumer(
-        builder: (context, ref, _) => _AppShell(shell: shell),
+GoRouter makeRouter({bool showOnboarding = false}) {
+  return GoRouter(
+    navigatorKey: _rootNavigatorKey,
+    initialLocation: showOnboarding ? '/onboarding' : '/home',
+    routes: [
+      GoRoute(
+        path: '/onboarding',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (_, state) => OnboardingScreen(
+          isFromSettings: state.extra as bool? ?? false,
+        ),
       ),
-      branches: [
-        StatefulShellBranch(
-          navigatorKey: _homeNavigatorKey,
-          routes: [
-            GoRoute(
-              path: '/home',
-              builder: (_, __) => const HomeScreen(),
-            ),
-            GoRoute(
-              path: '/activity/:id',
-              builder: (_, state) => ActivityDetailScreen(
-                activityId: int.parse(state.pathParameters['id']!),
+      StatefulShellRoute.indexedStack(
+        builder: (ctx, state, shell) => Consumer(
+          builder: (context, ref, _) => _AppShell(shell: shell),
+        ),
+        branches: [
+          StatefulShellBranch(
+            navigatorKey: _homeNavigatorKey,
+            routes: [
+              GoRoute(
+                path: '/home',
+                builder: (_, __) => const HomeScreen(),
               ),
-              routes: [
-                GoRoute(
-                  path: 'achievements',
-                  builder: (_, state) => ChallengeAchievementsScreen(
-                    activityId: int.parse(state.pathParameters['id']!),
+              GoRoute(
+                path: '/activity/:id',
+                builder: (_, state) => ActivityDetailScreen(
+                  activityId: int.parse(state.pathParameters['id']!),
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'achievements',
+                    builder: (_, state) => ChallengeAchievementsScreen(
+                      activityId: int.parse(state.pathParameters['id']!),
+                    ),
                   ),
-                ),
-                GoRoute(
-                  path: 'easter-eggs',
-                  builder: (_, state) => ChallengeEasterEggsScreen(
-                    activityId: int.parse(state.pathParameters['id']!),
+                  GoRoute(
+                    path: 'easter-eggs',
+                    builder: (_, state) => ChallengeEasterEggsScreen(
+                      activityId: int.parse(state.pathParameters['id']!),
+                    ),
                   ),
-                ),
-                GoRoute(
-                  path: 'montage',
-                  builder: (_, state) => MontageScreen(
-                    activityId: int.parse(state.pathParameters['id']!),
+                  GoRoute(
+                    path: 'montage',
+                    builder: (_, state) => MontageScreen(
+                      activityId: int.parse(state.pathParameters['id']!),
+                    ),
                   ),
-                ),
-                GoRoute(
-                  path: 'gallery',
-                  builder: (_, state) => PhotoGalleryScreen(
-                    activityId: int.parse(state.pathParameters['id']!),
+                  GoRoute(
+                    path: 'gallery',
+                    builder: (_, state) => PhotoGalleryScreen(
+                      activityId: int.parse(state.pathParameters['id']!),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          navigatorKey: _analyticsNavigatorKey,
-          routes: [
-            GoRoute(
-              path: '/analytics',
-              builder: (_, __) => const AnalyticsScreen(),
-            ),
-          ],
-        ),
-        StatefulShellBranch(
-          navigatorKey: _settingsNavigatorKey,
-          routes: [
-            GoRoute(
-              path: '/settings',
-              builder: (_, __) => const SettingsScreen(),
-              routes: [
-                GoRoute(
-                  path: 'badges',
-                  builder: (_, __) => const BadgesScreen(),
-                ),
-                GoRoute(
-                  path: 'trophies',
-                  builder: (_, __) => const TrophiesScreen(),
-                ),
-                GoRoute(
-                  path: 'about',
-                  builder: (_, __) => const AboutScreen(),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ],
-    ),
-  ],
-);
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: _analyticsNavigatorKey,
+            routes: [
+              GoRoute(
+                path: '/analytics',
+                builder: (_, __) => const AnalyticsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: _settingsNavigatorKey,
+            routes: [
+              GoRoute(
+                path: '/settings',
+                builder: (_, __) => const SettingsScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'badges',
+                    builder: (_, __) => const BadgesScreen(),
+                  ),
+                  GoRoute(
+                    path: 'trophies',
+                    builder: (_, __) => const TrophiesScreen(),
+                  ),
+                  GoRoute(
+                    path: 'about',
+                    builder: (_, __) => const AboutScreen(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+}
 
 class _AppShell extends ConsumerWidget {
   const _AppShell({required this.shell});
