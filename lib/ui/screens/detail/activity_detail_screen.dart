@@ -21,6 +21,7 @@ import '../../../core/services/photo_service.dart';
 import '../../widgets/contribution_grid.dart';
 import '../../widgets/day_completion_toast.dart';
 import '../../widgets/egg_celebration.dart';
+import '../../widgets/note_sheet.dart';
 import '../create/create_activity_sheet.dart';
 
 class ActivityDetailScreen extends ConsumerWidget {
@@ -585,6 +586,11 @@ class _PhotoCheckIn extends ConsumerWidget {
     final result =
         await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
     if (!context.mounted || result == null) return;
+    await showAndSaveNote(context, ref,
+        activityId: activity.id,
+        dateKey: dateKey,
+        color: Color(activity.colorValue));
+    if (!context.mounted) return;
     await showDayCompletionToast(
       context,
       ref,
@@ -1385,6 +1391,11 @@ class _MonthCalendar extends ConsumerWidget {
     final result =
         await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
     if (!context.mounted || result == null) return;
+    await showAndSaveNote(context, ref,
+        activityId: activity.id,
+        dateKey: dateKey,
+        color: Color(activity.colorValue));
+    if (!context.mounted) return;
     await showDayCompletionToast(
       context,
       ref,

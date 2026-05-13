@@ -207,27 +207,54 @@ class _MontageScreenState extends ConsumerState<MontageScreen> {
                                   ),
                                 ),
 
-                              // ── Date (bottom-left) ────────────────────────
+                              // ── Date + note (bottom-left) ─────────────────
                               Positioned(
                                 bottom: 16,
                                 left: 16,
                                 right: 16,
                                 child: AnimatedSwitcher(
                                   duration: const Duration(milliseconds: 300),
-                                  child: Text(
-                                    DateFormat('EEEE, d MMMM yyyy').format(date),
+                                  child: Column(
                                     key: ValueKey(_currentIndex),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: -0.3,
-                                      shadows: [
-                                        Shadow(
-                                            blurRadius: 12,
-                                            color: Colors.black87)
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        DateFormat('EEEE, d MMMM yyyy')
+                                            .format(date),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: -0.3,
+                                          shadows: [
+                                            Shadow(
+                                                blurRadius: 12,
+                                                color: Colors.black87)
+                                          ],
+                                        ),
+                                      ),
+                                      if (current.note != null &&
+                                          current.note!.isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          current.note!,
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 14,
+                                            height: 1.4,
+                                            shadows: [
+                                              Shadow(
+                                                  blurRadius: 8,
+                                                  color: Colors.black87)
+                                            ],
+                                          ),
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ],
-                                    ),
+                                    ],
                                   ),
                                 ),
                               ),

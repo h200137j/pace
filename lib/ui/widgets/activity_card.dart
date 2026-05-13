@@ -12,6 +12,7 @@ import 'progress_ring.dart';
 import 'streak_badge.dart';
 import '../../core/services/photo_service.dart';
 import 'day_completion_toast.dart';
+import 'note_sheet.dart';
 
 class ActivityCard extends ConsumerWidget {
   const ActivityCard({
@@ -230,6 +231,9 @@ class _CheckInButton extends ConsumerWidget {
       final result =
           await notifier.toggle(activity.id, dateKey, photoPath: savedPath);
       if (!context.mounted || result == null) return;
+      await showAndSaveNote(context, ref,
+          activityId: activity.id, dateKey: dateKey, color: color);
+      if (!context.mounted) return;
       await showDayCompletionToast(
         context,
         ref,

@@ -86,6 +86,18 @@ class CompletionRepository {
     await _db.writeTxn(() => _col.put(c));
   }
 
+  Future<void> updateNote(int activityId, String dateKey, String? note) async {
+    final existing = await _col
+        .where()
+        .filter()
+        .activityIdEqualTo(activityId)
+        .dateKeyEqualTo(dateKey)
+        .findFirst();
+    if (existing == null) return;
+    existing.note = (note == null || note.trim().isEmpty) ? null : note.trim();
+    await _db.writeTxn(() => _col.put(existing));
+  }
+
   Future<void> deleteAllForActivity(int activityId) async {
     final ids = await _col
         .where()
