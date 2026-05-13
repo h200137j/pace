@@ -12,6 +12,7 @@ import 'ui/screens/detail/challenge_easter_eggs_screen.dart';
 import 'ui/screens/detail/montage_screen.dart';
 import 'ui/screens/gamification/badges_screen.dart';
 import 'ui/screens/gamification/trophies_screen.dart';
+import 'ui/screens/settings/about_screen.dart';
 import 'ui/screens/home/home_screen.dart';
 import 'ui/screens/settings/settings_screen.dart';
 
@@ -89,6 +90,10 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'trophies',
                   builder: (_, __) => const TrophiesScreen(),
+                ),
+                GoRoute(
+                  path: 'about',
+                  builder: (_, __) => const AboutScreen(),
                 ),
               ],
             ),

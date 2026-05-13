@@ -197,6 +197,10 @@ class ChallengeRewardService {
       completionDateKeys: completionDateKeys,
     );
 
+    // Snapshot count before appending meta trophy so it doesn't exceed
+    // profile.trophies.length (which never includes the meta trophy).
+    final trophiesUnlocked = unlockedTrophyTitles.length;
+
     if (easterEggProgress.metaTrophyUnlocked) {
       unlockedTrophyTitles.add(EliteChallengeEasterEggService.metaTrophyTitle);
     }
@@ -205,7 +209,7 @@ class ChallengeRewardService {
       profile: profile,
       challengeXp: challengeXp,
       badgesUnlocked: badgeCount,
-      trophiesUnlocked: unlockedTrophyTitles.length,
+      trophiesUnlocked: trophiesUnlocked,
       easterEggsUnlocked: easterEggProgress.unlockedCount,
       easterEggsTarget: easterEggProgress.targetCount,
       unlockedBadgeTitles: unlockedBadgeTitles,

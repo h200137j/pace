@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/challenge_easter_egg_service.dart';
-import '../../../core/services/motivational_quote_service.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/services/challenge_reward_service.dart';
 import '../../../core/utils/streak_calculator.dart';
@@ -21,6 +20,7 @@ import '../../../providers/ui_state_provider.dart';
 import '../../../core/services/photo_service.dart';
 import '../../widgets/contribution_grid.dart';
 import '../../widgets/day_completion_toast.dart';
+import '../../widgets/egg_celebration.dart';
 import '../create/create_activity_sheet.dart';
 
 class ActivityDetailScreen extends ConsumerWidget {
@@ -57,6 +57,7 @@ class _DetailBody extends ConsumerStatefulWidget {
 class _DetailBodyState extends ConsumerState<_DetailBody> {
   String? _summaryMarker;
   String? _eggCelebrationMarker;
+  bool _dialogCallbackScheduled = false;
 
   Activity get activity => widget.activity;
 
@@ -187,68 +188,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     if (_eggCelebrationMarker == marker) return;
     _eggCelebrationMarker = marker;
 
-    final prefs = await SharedPreferences.getInstance();
-    final prefKey = 'challenge_egg_meta_shown_${activity.id}';
-    if (prefs.getBool(prefKey) ?? false) return;
-    await prefs.setBool(prefKey, true);
-
-    final quote = await MotivationalQuoteService.getCelebrationQuote();
-    if (!context.mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        final theme = Theme.of(dialogContext);
-        final accent = Color(activity.colorValue);
-
-        return AlertDialog(
-          title: const Text('Meta Trophy Unlocked'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.75, end: 1.0),
-                duration: const Duration(milliseconds: 700),
-                curve: Curves.elasticOut,
-                builder: (context, value, child) {
-                  return Transform.scale(scale: value, child: child);
-                },
-                child: Icon(
-                  Icons.emoji_events_rounded,
-                  color: accent,
-                  size: 56,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                EliteChallengeEasterEggService.metaTrophyTitle,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'All 12 monthly easter eggs discovered.',
-                style: theme.textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                quote,
-                style: theme.textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Legendary'),
-            ),
-          ],
-        );
-      },
-    );
+    await showMetaTrophyDialog(context, activity);
   }
 
   String _challengeRank(ChallengeRewardProgress progress) {
@@ -307,11 +247,14 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
           )
         : null;
 
-    if (activity.type == ActivityType.challenge) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (activity.type == ActivityType.challenge && !_dialogCallbackScheduled) {
+      _dialogCallbackScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        _dialogCallbackScheduled = false;
         if (!context.mounted) return;
-        _maybeShowChallengeSummary(context, challengeProgress);
-        _maybeShowEasterEggMetaCelebration(context, challengeProgress);
+        await _maybeShowChallengeSummary(context, challengeProgress);
+        if (!context.mounted) return;
+        await _maybeShowEasterEggMetaCelebration(context, challengeProgress);
       });
     }
 

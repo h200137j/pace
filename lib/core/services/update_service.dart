@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -26,7 +27,9 @@ class UpdateService {
   /// Returns [AppUpdateInfo] if an update exists, null otherwise.
   static Future<AppUpdateInfo?> checkForUpdates() async {
     try {
-      final response = await http.get(Uri.parse('$_apiBase/releases/latest'));
+      final response = await http
+          .get(Uri.parse('$_apiBase/releases/latest'))
+          .timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) return null;
 
       final data = json.decode(response.body) as Map<String, dynamic>;
@@ -58,7 +61,7 @@ class UpdateService {
         );
       }
     } catch (e) {
-      print('Update check failed: $e');
+      debugPrint('Update check failed: $e');
     }
     return null;
   }
@@ -68,7 +71,9 @@ class UpdateService {
   static Stream<dynamic> downloadUpdate(String url) async* {
     final client = http.Client();
     final request = http.Request('GET', Uri.parse(url));
-    final response = await client.send(request);
+    final response = await client
+        .send(request)
+        .timeout(const Duration(seconds: 30));
 
     final total = response.contentLength ?? 0;
     int received = 0;
@@ -145,9 +150,9 @@ class UpdateService {
 
     try {
       final encodedTag = Uri.encodeComponent(tagName);
-      final refResponse = await http.get(
-        Uri.parse('$_apiBase/git/ref/tags/$encodedTag'),
-      );
+      final refResponse = await http
+          .get(Uri.parse('$_apiBase/git/ref/tags/$encodedTag'))
+          .timeout(const Duration(seconds: 10));
       if (refResponse.statusCode != 200) return null;
 
       final refData = json.decode(refResponse.body) as Map<String, dynamic>;
@@ -159,9 +164,9 @@ class UpdateService {
       final tagSha = (obj['sha'] ?? '').toString();
       if (tagSha.isEmpty) return null;
 
-      final tagResponse = await http.get(
-        Uri.parse('$_apiBase/git/tags/$tagSha'),
-      );
+      final tagResponse = await http
+          .get(Uri.parse('$_apiBase/git/tags/$tagSha'))
+          .timeout(const Duration(seconds: 10));
       if (tagResponse.statusCode != 200) return null;
 
       final tagData = json.decode(tagResponse.body) as Map<String, dynamic>;

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
 
@@ -40,25 +41,26 @@ class VideoExportService {
           
           frames.add(resized);
         } catch (e) {
-          print('Error processing image $imagePath: $e');
+          debugPrint('Error processing image $imagePath: $e');
           continue;
         }
       }
-      
+
       if (frames.isEmpty) return null;
-      
-      // Encode as GIF
-      final gif = img.Animation(width: 720, height: 1280);
-      for (int i = 0; i < frames.length; i++) {
-        gif.addFrame(frames[i], duration: duration);
+
+      // image v4: animation lives on the first Image; addFrame attaches others.
+      frames.first.frameDuration = duration;
+      for (var i = 1; i < frames.length; i++) {
+        frames[i].frameDuration = duration;
+        frames.first.addFrame(frames[i]);
       }
-      final gifData = img.encodeGif(gif);
+      final gifData = img.encodeGif(frames.first);
       final outputFile = File(outputPath);
       await outputFile.writeAsBytes(gifData);
-      
+
       return outputPath;
     } catch (e) {
-      print('Video creation error: $e');
+      debugPrint('Video creation error: $e');
       return null;
     }
   }

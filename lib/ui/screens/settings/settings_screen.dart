@@ -189,12 +189,13 @@ class SettingsScreen extends ConsumerWidget {
               const _SectionHeader('About'),
               _SettingsTile(
                 icon: Icons.info_outline_rounded,
-                title: 'Pace',
+                title: 'About Pace',
                 subtitle: appInfo.when(
-                  data: (info) => 'v${info.version}+${info.buildNumber} — Built with Flutter & Isar',
+                  data: (info) => 'v${info.version} — Built with Flutter & Isar',
                   loading: () => 'Version loading…',
-                  error: (_, __) => 'Version unavailable — Built with Flutter & Isar',
+                  error: (_, __) => 'Version unavailable',
                 ),
+                onTap: () => context.push('/settings/about'),
               ),
               const SizedBox(height: 140),
             ]),

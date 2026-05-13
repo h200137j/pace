@@ -21,6 +21,8 @@ class _ChallengeEasterEggsScreenState
     extends ConsumerState<ChallengeEasterEggsScreen> {
   final Set<int> _knownUnlocked = <int>{};
   final Set<int> _freshUnlocked = <int>{};
+  bool _initialized = false;
+  bool _callbackScheduled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -69,32 +71,37 @@ class _ChallengeEasterEggsScreenState
             .map((m) => m.monthIndex)
             .toSet();
 
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
+        if (!_callbackScheduled) {
+          _callbackScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _callbackScheduled = false;
+            if (!mounted) return;
 
-          if (_knownUnlocked.isEmpty) {
-            _knownUnlocked.addAll(currentUnlocked);
-            return;
-          }
+            if (!_initialized) {
+              _initialized = true;
+              _knownUnlocked.addAll(currentUnlocked);
+              return;
+            }
 
-          final newlyUnlocked = currentUnlocked.difference(_knownUnlocked);
-          if (newlyUnlocked.isEmpty) return;
+            final newlyUnlocked = currentUnlocked.difference(_knownUnlocked);
+            if (newlyUnlocked.isEmpty) return;
 
-          setState(() {
-            _knownUnlocked.addAll(newlyUnlocked);
-            _freshUnlocked.addAll(newlyUnlocked);
-          });
-
-          for (final monthIndex in newlyUnlocked) {
-            Future.delayed(const Duration(milliseconds: 1700), () {
-              if (!mounted) return;
-              if (!_freshUnlocked.contains(monthIndex)) return;
-              setState(() {
-                _freshUnlocked.remove(monthIndex);
-              });
+            setState(() {
+              _knownUnlocked.addAll(newlyUnlocked);
+              _freshUnlocked.addAll(newlyUnlocked);
             });
-          }
-        });
+
+            for (final monthIndex in newlyUnlocked) {
+              Future.delayed(const Duration(milliseconds: 1700), () {
+                if (!mounted) return;
+                if (!_freshUnlocked.contains(monthIndex)) return;
+                setState(() {
+                  _freshUnlocked.remove(monthIndex);
+                });
+              });
+            }
+          });
+        }
 
         final hintEnabled = ref.watch(gamificationSettingsProvider).showEasterEggHints;
         final currentHint = hintEnabled
