@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/completion_provider.dart';
 
-/// Shows the note prompt and saves the result. Call after a photo completion.
 Future<void> showAndSaveNote(
   BuildContext context,
   WidgetRef ref, {
@@ -12,7 +11,11 @@ Future<void> showAndSaveNote(
   required Color color,
 }) async {
   if (!context.mounted) return;
-  final note = await _showNoteSheet(context, color: color);
+  final note = await showDialog<String>(
+    context: context,
+    barrierColor: Colors.black54,
+    builder: (ctx) => _NoteDialog(color: color),
+  );
   if (note == null || note.trim().isEmpty) return;
   if (!context.mounted) return;
   await ref
@@ -20,27 +23,15 @@ Future<void> showAndSaveNote(
       .updateNote(activityId, dateKey, note);
 }
 
-Future<String?> _showNoteSheet(
-  BuildContext context, {
-  required Color color,
-}) {
-  return showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (ctx) => _NoteSheet(color: color),
-  );
-}
-
-class _NoteSheet extends StatefulWidget {
-  const _NoteSheet({required this.color});
+class _NoteDialog extends StatefulWidget {
+  const _NoteDialog({required this.color});
   final Color color;
 
   @override
-  State<_NoteSheet> createState() => _NoteSheetState();
+  State<_NoteDialog> createState() => _NoteDialogState();
 }
 
-class _NoteSheetState extends State<_NoteSheet> {
+class _NoteDialogState extends State<_NoteDialog> {
   final _ctrl = TextEditingController();
 
   @override
@@ -52,90 +43,144 @@ class _NoteSheetState extends State<_NoteSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 16 + bottomInset),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Handle
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(2),
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF13131E),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: widget.color.withValues(alpha: 0.3),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withValues(alpha: 0.15),
+              blurRadius: 32,
+              spreadRadius: 4,
+            ),
+            const BoxShadow(
+              color: Colors.black54,
+              blurRadius: 20,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ──────────────────────────────────────────────────
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: widget.color.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.edit_note_rounded,
+                      color: widget.color, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'How did it go?',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        'Optional · shows up in your montage',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // ── Text field ───────────────────────────────────────────────
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              maxLines: 4,
+              maxLength: 200,
+              textCapitalization: TextCapitalization.sentences,
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'Add a note…',
+                hintStyle:
+                    TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                filled: true,
+                fillColor: widget.color.withValues(alpha: 0.06),
+                counterStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide:
+                      BorderSide(color: widget.color.withValues(alpha: 0.2)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide:
+                      BorderSide(color: widget.color.withValues(alpha: 0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: widget.color, width: 1.5),
+                ),
               ),
             ),
-          ),
-          Text(
-            'How did it go?',
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Optional — shows up in your montage.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+
+            const SizedBox(height: 20),
+
+            // ── Actions ──────────────────────────────────────────────────
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, null),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white.withValues(alpha: 0.6),
+                      side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.15)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Skip'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(context, _ctrl.text),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: widget.color,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Save'),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _ctrl,
-            autofocus: true,
-            maxLines: 3,
-            maxLength: 200,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(
-              hintText: 'Add a note…',
-              filled: true,
-              fillColor: widget.color.withValues(alpha: 0.06),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(
-                    color: widget.color.withValues(alpha: 0.25)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(
-                    color: widget.color.withValues(alpha: 0.2)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide:
-                    BorderSide(color: widget.color, width: 1.5),
-              ),
-              counterStyle: theme.textTheme.labelSmall,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, null),
-                child: const Text('Skip'),
-              ),
-              const Spacer(),
-              FilledButton(
-                onPressed: () =>
-                    Navigator.pop(context, _ctrl.text),
-                style: FilledButton.styleFrom(
-                    backgroundColor: widget.color),
-                child: const Text('Save note'),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

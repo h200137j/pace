@@ -115,9 +115,30 @@ class SettingsScreen extends ConsumerWidget {
               // ── Data Portability ─────────────────────────────────────────
               const _SectionHeader('Data'),
               _SettingsTile(
-                icon: Icons.upload_rounded,
-                title: 'Export JSON Backup',
-                subtitle: 'Saves all activities and completions',
+                icon: Icons.save_alt_rounded,
+                title: 'Save Backup to Device',
+                subtitle: 'Save JSON file to a location you choose',
+                onTap: () async {
+                  final export = makeExport(ref);
+                  try {
+                    final saved = await export.exportJsonToFile();
+                    if (context.mounted) {
+                      showAppSnackBar(
+                        context,
+                        saved ? 'Backup saved ✓' : 'Save cancelled',
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      showAppSnackBar(context, 'Save failed: $e');
+                    }
+                  }
+                },
+              ),
+              _SettingsTile(
+                icon: Icons.share_rounded,
+                title: 'Share Backup',
+                subtitle: 'Share JSON via apps or cloud storage',
                 onTap: () async {
                   final export = makeExport(ref);
                   try {

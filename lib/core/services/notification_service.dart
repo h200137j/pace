@@ -87,7 +87,19 @@ class NotificationService {
   }
 
   Future<void> showChallengeNotification(Activity activity) async {
-    const androidDetails = AndroidNotificationDetails(
+    // Photo challenges cannot be completed from a notification — skip action.
+    final actions = activity.requiresPhoto
+        ? const <AndroidNotificationAction>[]
+        : const <AndroidNotificationAction>[
+            AndroidNotificationAction(
+              'mark_done',
+              'Mark Done',
+              showsUserInterface: false,
+              cancelNotification: true,
+            ),
+          ];
+
+    final androidDetails = AndroidNotificationDetails(
       'challenge_reminders',
       'Challenge Reminders',
       channelDescription: 'Persistent notifications for pending challenges',
@@ -95,17 +107,10 @@ class NotificationService {
       priority: Priority.high,
       ongoing: true,
       autoCancel: false,
-      actions: <AndroidNotificationAction>[
-        AndroidNotificationAction(
-          'mark_done',
-          'Mark Done',
-          showsUserInterface: false,
-          cancelNotification: true,
-        ),
-      ],
+      actions: actions,
     );
 
-    const notificationDetails = NotificationDetails(
+    final notificationDetails = NotificationDetails(
       android: androidDetails,
     );
 

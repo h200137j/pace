@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -64,12 +65,36 @@ class ExportService {
     };
   }
 
+  static String _exportFileName() {
+    final now = DateTime.now();
+    final stamp = '${now.year}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}_'
+        '${now.hour.toString().padLeft(2, '0')}-'
+        '${now.minute.toString().padLeft(2, '0')}';
+    return 'pace_$stamp.json';
+  }
+
+  /// Share backup via system share sheet.
   Future<void> exportJson() async {
     final payload = await buildExportPayload();
-
     final json = const JsonEncoder.withIndent('  ').convert(payload);
-    final file = await _writeTemp('pace_backup.json', json);
+    final file = await _writeTemp(_exportFileName(), json);
     await Share.shareXFiles([XFile(file.path)], text: 'Pace backup');
+  }
+
+  /// Save backup directly to a user-chosen location (no share sheet).
+  Future<bool> exportJsonToFile() async {
+    final payload = await buildExportPayload();
+    final jsonStr = const JsonEncoder.withIndent('  ').convert(payload);
+    final bytes = Uint8List.fromList(utf8.encode(jsonStr));
+
+    final result = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save Pace Backup',
+      fileName: _exportFileName(),
+      bytes: bytes,
+    );
+    return result != null;
   }
 
   Future<void> importJson() async {
