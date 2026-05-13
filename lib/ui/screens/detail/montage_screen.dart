@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../providers/activity_provider.dart';
 import '../../../providers/completion_provider.dart';
+import '../../../providers/ui_state_provider.dart';
 
 class MontageScreen extends ConsumerStatefulWidget {
   const MontageScreen({super.key, required this.activityId});
@@ -15,211 +16,439 @@ class MontageScreen extends ConsumerStatefulWidget {
 }
 
 class _MontageScreenState extends ConsumerState<MontageScreen> {
-  final PageController _pageController = PageController();
   int _currentIndex = 0;
   bool _isPlaying = false;
-  int _fps = 1; // 1 = 1 second per image, 2 = 0.5 seconds per image
+  // ms per photo: 2000 = 0.5fps, 1000 = 1fps, 500 = 2fps
+  int _intervalMs = 1000;
 
-  void _togglePlay() {
-    setState(() => _isPlaying = !_isPlaying);
-    if (_isPlaying) {
-      _startSlideshow();
-    }
-  }
+  static const _intervals = [2000, 1000, 500];
+  static const _intervalLabels = ['0.5fps', '1fps', '2fps'];
 
-  void _setSpeed(int fps) {
-    setState(() {
-      _fps = fps;
-      _isPlaying = false; // Reset when changing speed
+  String get _speedLabel =>
+      _intervalLabels[_intervals.indexOf(_intervalMs)];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(hideNavBarProvider.notifier).state = true;
     });
   }
 
-  Future<void> _startSlideshow() async {
+  @override
+  void dispose() {
+    ref.read(hideNavBarProvider.notifier).state = false;
+    super.dispose();
+  }
+
+  void _togglePlay(int total) {
+    setState(() => _isPlaying = !_isPlaying);
+    if (_isPlaying) _startSlideshow(total);
+  }
+
+  void _cycleFps() {
+    final next = (_intervals.indexOf(_intervalMs) + 1) % _intervals.length;
+    setState(() {
+      _intervalMs = _intervals[next];
+      _isPlaying = false;
+    });
+  }
+
+  Future<void> _startSlideshow(int total) async {
     while (_isPlaying && mounted) {
-      await Future.delayed(Duration(seconds: 1 ~/ _fps));
+      await Future.delayed(Duration(milliseconds: _intervalMs));
       if (!_isPlaying || !mounted) break;
-      
-      final completions = ref.read(completionsForActivityProvider(widget.activityId)).valueOrNull ?? [];
-      final photoCompletions = completions.where((c) => c.photoPath != null).toList();
-      
-      if (_currentIndex < photoCompletions.length - 1) {
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOutCubic,
-        );
+      if (_currentIndex < total - 1) {
+        setState(() => _currentIndex++);
       } else {
         setState(() => _isPlaying = false);
       }
     }
   }
 
-  
-
-  String get speedLabel {
-    switch (_fps) {
-      case 1:
-        return '1 sec/photo';
-      case 2:
-        return '2x faster';
-      case 4:
-        return '4x faster';
-      default:
-        return '${_fps}x speed';
-    }
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+  void _goTo(int index, int total) {
+    if (index < 0 || index >= total) return;
+    setState(() => _currentIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
     final activityAsync = ref.watch(activityByIdProvider(widget.activityId));
-    final completionsAsync = ref.watch(completionsForActivityProvider(widget.activityId));
+    final completionsAsync =
+        ref.watch(completionsForActivityProvider(widget.activityId));
+
+    final activityName = activityAsync.valueOrNull?.name ?? '';
+    final accentColor = activityAsync.hasValue
+        ? Color(activityAsync.value!.colorValue)
+        : const Color(0xFF00F2FF);
 
     return Scaffold(
       backgroundColor: Colors.black,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: BackButton(color: Colors.white, onPressed: () => Navigator.pop(context)),
-        actions: [
-          if (completionsAsync.hasValue) ...[
-            // Speed dropdown
-            PopupMenuButton<int>(
-              onSelected: _setSpeed,
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 1, child: Text('1 sec/photo')),
-                const PopupMenuItem(value: 2, child: Text('2x faster (0.5s)')),
-                const PopupMenuItem(value: 4, child: Text('4x faster (0.25s)')),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Center(
-                  child: Text(
-                    speedLabel,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ),
-              ),
-            ),
-            // Play/Pause
-            IconButton(
-              icon: Icon(_isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white),
-              onPressed: _togglePlay,
-            ),
-          ],
-        ],
-      ),
       body: completionsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
-        error: (e, _) => const Center(child: Text('Error loading photos', style: TextStyle(color: Colors.white))),
+        loading: () =>
+            const Center(child: CircularProgressIndicator(color: Colors.white)),
+        error: (_, __) => const Center(
+          child: Text('Error loading photos',
+              style: TextStyle(color: Colors.white70)),
+        ),
         data: (completions) {
-          final photoCompletions = completions
+          final photos = completions
               .where((c) => c.photoPath != null)
               .toList()
-              ..sort((a, b) => a.dateKey.compareTo(b.dateKey)); // Chronological
+            ..sort((a, b) => a.dateKey.compareTo(b.dateKey));
 
-          if (photoCompletions.isEmpty) {
-            return const Center(
-              child: Text(
-                'No photos uploaded for this challenge yet.',
-                style: TextStyle(color: Colors.white70),
+          if (photos.isEmpty) {
+            return Stack(children: [
+              const Center(
+                child: Text('No photos uploaded yet.',
+                    style: TextStyle(color: Colors.white54, fontSize: 16)),
               ),
-            );
+              _BottomBar(
+                speedLabel: _speedLabel,
+                isPlaying: _isPlaying,
+                current: 0,
+                total: 0,
+                accentColor: accentColor,
+                onClose: () => Navigator.pop(context),
+                onPlayPause: () {},
+                onCycleFps: _cycleFps,
+              ),
+            ]);
           }
+
+          final total = photos.length;
+          final current = photos[_currentIndex];
+          final date = DateTime.parse(current.dateKey);
 
           return Stack(
             children: [
-              PageView.builder(
-                controller: _pageController,
-                itemCount: photoCompletions.length,
-                onPageChanged: (i) => setState(() => _currentIndex = i),
-                itemBuilder: (ctx, i) {
-                  final completion = photoCompletions[i];
-                  final date = DateTime.parse(completion.dateKey);
-                  
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // High quality image
-                      Image.file(
-                        File(completion.photoPath!),
-                        fit: BoxFit.cover,
-                        alignment: Alignment.center,
-                      ),
-                      // Gradient overlay for text readability
-                      const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [Colors.black45, Colors.transparent, Colors.transparent, Colors.black87],
-                            stops: [0, 0.2, 0.7, 1],
-                          ),
-                        ),
-                      ),
-                      // Date label
-                      Positioned(
-                        bottom: 60,
-                        left: 24,
-                        right: 24,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              DateFormat('MMMM d, yyyy').format(date),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            if (completion.note != null && completion.note!.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  completion.note!,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 16,
+              // ── Photo card layout ──────────────────────────────────────
+              Column(
+                children: [
+                  SizedBox(
+                    height: MediaQuery.of(context).padding.top +
+                        MediaQuery.of(context).size.height * 0.12,
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapUp: (d) {
+                        final half = MediaQuery.of(context).size.width / 2;
+                        if (d.globalPosition.dx < half) {
+                          _goTo(_currentIndex - 1, total);
+                        } else {
+                          _goTo(_currentIndex + 1, total);
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              // ── Ken Burns photo with crossfade ───────────
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 400),
+                                transitionBuilder: (child, anim) =>
+                                    FadeTransition(opacity: anim, child: child),
+                                layoutBuilder: (current, previous) => Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    ...previous,
+                                    if (current != null) current,
+                                  ],
+                                ),
+                                child: _KenBurnsPhoto(
+                                  key: ValueKey(_currentIndex),
+                                  path: current.photoPath!,
+                                  index: _currentIndex,
+                                  duration: Duration(
+                                    milliseconds: _intervalMs.clamp(500, 4000),
                                   ),
                                 ),
                               ),
-                          ],
+
+                              // ── Gradient overlay ─────────────────────────
+                              const DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Color(0x88000000),
+                                      Colors.transparent,
+                                      Colors.transparent,
+                                      Color(0xCC000000),
+                                    ],
+                                    stops: [0, 0.18, 0.6, 1],
+                                  ),
+                                ),
+                              ),
+
+                              // ── Activity name (top-left) ──────────────────
+                              if (activityName.isNotEmpty)
+                                Positioned(
+                                  top: 16,
+                                  left: 16,
+                                  right: 16,
+                                  child: Text(
+                                    activityName,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      shadows: [
+                                        Shadow(
+                                            blurRadius: 8,
+                                            color: Colors.black87)
+                                      ],
+                                    ),
+                                  ),
+                                ),
+
+                              // ── Date (bottom-left) ────────────────────────
+                              Positioned(
+                                bottom: 16,
+                                left: 16,
+                                right: 16,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: Text(
+                                    DateFormat('EEEE, d MMMM yyyy').format(date),
+                                    key: ValueKey(_currentIndex),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: -0.3,
+                                      shadows: [
+                                        Shadow(
+                                            blurRadius: 12,
+                                            color: Colors.black87)
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ],
-                  );
-                },
-              ),
-              // Progress indicator
-              Positioned(
-                bottom: 30,
-                left: 24,
-                right: 24,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: (photoCompletions.length > 1) 
-                        ? (_currentIndex / (photoCompletions.length - 1))
-                        : 1.0,
-                    backgroundColor: Colors.white24,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      activityAsync.hasValue ? Color(activityAsync.value!.colorValue) : Colors.white,
                     ),
-                    minHeight: 4,
                   ),
-                ),
+                  const SizedBox(height: 110),
+                ],
+              ),
+
+              // ── Bottom control pill ────────────────────────────────────
+              _BottomBar(
+                speedLabel: _speedLabel,
+                isPlaying: _isPlaying,
+                current: _currentIndex + 1,
+                total: total,
+                accentColor: accentColor,
+                onClose: () => Navigator.pop(context),
+                onPlayPause: () => _togglePlay(total),
+                onCycleFps: _cycleFps,
               ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+// ── Ken Burns photo ────────────────────────────────────────────────────────
+
+class _KenBurnsPhoto extends StatefulWidget {
+  const _KenBurnsPhoto({
+    super.key,
+    required this.path,
+    required this.index,
+    required this.duration,
+  });
+
+  final String path;
+  final int index;
+  final Duration duration;
+
+  @override
+  State<_KenBurnsPhoto> createState() => _KenBurnsPhotoState();
+}
+
+class _KenBurnsPhotoState extends State<_KenBurnsPhoto>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<Alignment> _align;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: widget.duration);
+
+    // Alternate zoom-in / zoom-out
+    final zoomIn = widget.index % 2 == 0;
+    _scale = Tween<double>(
+      begin: zoomIn ? 1.0 : 1.08,
+      end: zoomIn ? 1.08 : 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+
+    // Subtle alignment drift — 4 directions cycling
+    const anchors = <List<Alignment>>[
+      [Alignment.centerLeft, Alignment.centerRight],
+      [Alignment.topCenter, Alignment.bottomCenter],
+      [Alignment.centerRight, Alignment.centerLeft],
+      [Alignment.bottomCenter, Alignment.topCenter],
+    ];
+    final pair = anchors[widget.index % anchors.length];
+    _align = AlignmentTween(begin: pair[0], end: pair[1])
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Transform.scale(
+        scale: _scale.value,
+        child: Image.file(
+          File(widget.path),
+          fit: BoxFit.cover,
+          alignment: _align.value,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Bottom control bar ─────────────────────────────────────────────────────
+
+class _BottomBar extends StatelessWidget {
+  const _BottomBar({
+    required this.speedLabel,
+    required this.isPlaying,
+    required this.current,
+    required this.total,
+    required this.accentColor,
+    required this.onClose,
+    required this.onPlayPause,
+    required this.onCycleFps,
+  });
+
+  final String speedLabel;
+  final bool isPlaying;
+  final int current;
+  final int total;
+  final Color accentColor;
+  final VoidCallback onClose;
+  final VoidCallback onPlayPause;
+  final VoidCallback onCycleFps;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+
+    return Positioned(
+      bottom: bottomInset + 24,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _Btn(
+                onTap: onClose,
+                child: const Icon(Icons.close_rounded,
+                    color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 4),
+              _Btn(
+                onTap: onCycleFps,
+                child: Text(
+                  speedLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              _Btn(
+                onTap: onPlayPause,
+                highlighted: true,
+                color: accentColor,
+                child: Icon(
+                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: isPlaying ? Colors.white : const Color(0xFF0A0A0F),
+                  size: 24,
+                ),
+              ),
+              if (total > 0) ...[
+                const SizedBox(width: 4),
+                _Btn(
+                  onTap: () {},
+                  child: Text(
+                    '$current / $total',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.55),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Btn extends StatelessWidget {
+  const _Btn({
+    required this.onTap,
+    required this.child,
+    this.highlighted = false,
+    this.color,
+  });
+
+  final VoidCallback onTap;
+  final Widget child;
+  final bool highlighted;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: highlighted ? (color ?? Colors.white) : Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: child,
       ),
     );
   }

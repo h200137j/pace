@@ -349,6 +349,9 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                 color: color,
                 progress: challengeProgress,
                 radarHint: eggHint?.eggAlreadyFound == false ? eggHint?.message : null,
+                onViewMontage: (activity.requiresPhoto || photoCompletions > 0)
+                    ? () => context.push('/activity/${activity.id}/montage')
+                    : null,
                 onViewAchievements: activity.type == ActivityType.challenge
                     ? () => context.push('/activity/${activity.id}/achievements')
                     : null,
@@ -359,11 +362,11 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
             ),
           ),
 
-          // ── Montage & Check-in ──────────────────────────────────────────
+          // ── Photo check-in & montage preview card ───────────────────────
           if (activity.requiresPhoto)
             _PhotoCheckIn(activity: activity),
 
-          if (activity.requiresPhoto)
+          if (activity.requiresPhoto || photoCompletions > 0)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -682,6 +685,7 @@ class _ChallengeProgressCard extends StatelessWidget {
     this.radarHint,
     this.onViewAchievements,
     this.onViewEasterEggs,
+    this.onViewMontage,
   });
 
   final Color color;
@@ -689,6 +693,7 @@ class _ChallengeProgressCard extends StatelessWidget {
   final String? radarHint;
   final VoidCallback? onViewAchievements;
   final VoidCallback? onViewEasterEggs;
+  final VoidCallback? onViewMontage;
 
   @override
   Widget build(BuildContext context) {
@@ -789,8 +794,19 @@ class _ChallengeProgressCard extends StatelessWidget {
               ),
             ),
           ],
-          if (onViewAchievements != null) ...[
+          if (onViewMontage != null) ...[
             const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onViewMontage,
+                icon: const Icon(Icons.movie_creation_rounded),
+                label: const Text('View Photo Montage'),
+              ),
+            ),
+          ],
+          if (onViewAchievements != null) ...[
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(

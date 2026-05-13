@@ -113,6 +113,7 @@ class _AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isCreateSheetOpen = ref.watch(createSheetOpenProvider);
+    final isNavBarHidden = ref.watch(hideNavBarProvider);
     
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0F),
@@ -146,7 +147,7 @@ class _AppShell extends ConsumerWidget {
           shell,
 
           // ── Bottom Navigation Bar ────────────────────────────────────────
-          if (!isCreateSheetOpen)
+          if (!isCreateSheetOpen && !isNavBarHidden)
             Positioned(
               left: 20,
               right: 20,
