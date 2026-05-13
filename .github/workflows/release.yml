@@ -45,6 +45,9 @@ jobs:
       - name: Build APK
         run: flutter build apk --release --no-tree-shake-icons
 
+      - name: Build AAB
+        run: flutter build appbundle --release --no-tree-shake-icons
+
       - name: Rename APK
         run: |
           set -euo pipefail
@@ -61,7 +64,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Pace-Artifacts
-          path: build/app/outputs/flutter-apk/pace-*.apk
+          path: |
+            build/app/outputs/flutter-apk/pace-*.apk
+            build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload to Play Store
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.h200137j.pace
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
 
       - name: Prepare Release Notes
         if: startsWith(github.ref, 'refs/tags/v')
