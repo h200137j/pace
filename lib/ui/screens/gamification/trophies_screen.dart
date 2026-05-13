@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/constants/trophy_catalog.dart';
-import '../../../data/models/trophy_unlock.dart';
 import '../../../providers/gamification_provider.dart';
 
 class TrophiesScreen extends ConsumerStatefulWidget {
@@ -16,195 +16,283 @@ class _TrophiesScreenState extends ConsumerState<TrophiesScreen> {
   @override
   void initState() {
     super.initState();
-    _ensureTrophiesInitialized();
-  }
-
-  Future<void> _ensureTrophiesInitialized() async {
-    final repo = ref.read(gamificationRepositoryProvider);
-    await repo.ensureAllTrophiesExist();
+    ref.read(gamificationRepositoryProvider).ensureAllTrophiesExist();
   }
 
   @override
   Widget build(BuildContext context) {
     final trophiesAsync = ref.watch(trophyUnlocksProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Trophies')),
-      body: trophiesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Failed to load trophies: $e')),
-        data: (trophies) {
-          // Create a map of trophyKey -> trophyDefinition for quick lookup
-          final catalogMap = {
-            for (final def in TrophyCatalog.all) def.key: def
-          };
+      backgroundColor: Colors.transparent,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar.medium(
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            title: Text(
+              'Trophies',
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          trophiesAsync.when(
+            loading: () => const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, _) => SliverFillRemaining(
+              child: Center(child: Text('Error: $e')),
+            ),
+            data: (unlockRecords) {
+              final byKey = {
+                for (final t in unlockRecords) t.trophyKey: t,
+              };
 
-          // Separate unlocked and locked trophies
-          final unlocked = <TrophyUnlock>[];
-          final locked = <TrophyUnlock>[];
+              // Build from catalog order — orphaned old keys are excluded.
+              final entries = TrophyCatalog.all.map((def) {
+                final record = byKey[def.key];
+                final isUnlocked = record?.unlockedAt != null;
+                final progress = record?.progress ?? 0;
+                return (def: def, isUnlocked: isUnlocked, progress: progress,
+                    unlockedAt: record?.unlockedAt);
+              }).toList()
+                ..sort((a, b) {
+                  if (a.isUnlocked != b.isUnlocked) {
+                    return a.isUnlocked ? -1 : 1;
+                  }
+                  if (a.isUnlocked && b.isUnlocked) {
+                    return (a.unlockedAt ?? DateTime(0))
+                        .compareTo(b.unlockedAt ?? DateTime(0));
+                  }
+                  final pA = a.def.target > 0 ? a.progress / a.def.target : 0.0;
+                  final pB = b.def.target > 0 ? b.progress / b.def.target : 0.0;
+                  return pB.compareTo(pA);
+                });
 
-          for (final trophy in trophies) {
-            if (trophy.unlockedAt != null) {
-              unlocked.add(trophy);
-            } else {
-              locked.add(trophy);
-            }
-          }
+              final unlockedCount =
+                  entries.where((e) => e.isUnlocked).length;
 
-          // Sort unlocked by unlock date (earliest first)
-          unlocked.sort((a, b) {
-            final dateA = a.unlockedAt ?? DateTime.now();
-            final dateB = b.unlockedAt ?? DateTime.now();
-            return dateA.compareTo(dateB);
-          });
-
-          // Sort locked by progress percentage (descending - closest to unlock first)
-          locked.sort((a, b) {
-            final progressA = a.target > 0 ? (a.progress / a.target) : 0.0;
-            final progressB = b.target > 0 ? (b.progress / b.target) : 0.0;
-            return progressB.compareTo(progressA); // Descending
-          });
-
-          // Combine unlocked first, then locked
-          final sortedTrophies = [...unlocked, ...locked];
-
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            itemCount: sortedTrophies.length,
-            itemBuilder: (context, index) {
-              final trophy = sortedTrophies[index];
-              final def = catalogMap[trophy.trophyKey];
-              final unlocked = trophy.unlockedAt != null;
-              final progressPercent = trophy.target > 0
-                  ? (trophy.progress / trophy.target * 100).clamp(0, 100).toInt()
-                  : 0;
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Card(
-                  color: unlocked
-                      ? Colors.purple.withOpacity(0.12)
-                      : Colors.grey.withOpacity(0.06),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: unlocked
-                          ? Colors.purple.withOpacity(0.3)
-                          : Colors.grey.withOpacity(0.2),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              unlocked
-                                  ? Icons.emoji_events_rounded
-                                  : Icons.emoji_events_outlined,
-                              color: unlocked
-                                  ? Colors.purple
-                                  : Colors.grey,
-                              size: 28,
+              return SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 140),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (ctx, i) {
+                      if (i == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 20),
+                          child: Text(
+                            '$unlockedCount / ${entries.length} unlocked',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.4),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    def?.title ?? trophy.trophyKey,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ),
-                                  if (def != null)
-                                    Text(
-                                      def.description,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: Colors.grey[600],
-                                          ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            if (!unlocked)
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                child: Text(
-                                  '$progressPercent%',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelSmall
-                                      ?.copyWith(
-                                        color: Colors.orange,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                              ),
-                          ],
+                          ),
+                        );
+                      }
+                      final e = entries[i - 1];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _TrophyCard(
+                          def: e.def,
+                          isUnlocked: e.isUnlocked,
+                          progress: e.progress,
+                          unlockedAt: e.unlockedAt,
                         ),
-                        if (!unlocked) ...[
-                          const SizedBox(height: 12),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: progressPercent / 100,
-                              minHeight: 6,
-                              backgroundColor: Colors.grey.withOpacity(0.2),
-                              valueColor: AlwaysStoppedAnimation(
-                                Colors.orange.withOpacity(0.7),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Progress: ${trophy.progress}/${trophy.target}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: Colors.grey[600],
-                                ),
-                          ),
-                        ] else
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              'Unlocked on ${trophy.unlockedAt!.toLocal().toString().split('.')[0]}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: Colors.purple[700],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                            ),
-                          ),
-                      ],
-                    ),
+                      );
+                    },
+                    childCount: entries.length + 1,
                   ),
                 ),
               );
             },
-          );
-        },
+          ),
+        ],
       ),
     );
   }
+}
+
+class _TrophyCard extends StatelessWidget {
+  const _TrophyCard({
+    required this.def,
+    required this.isUnlocked,
+    required this.progress,
+    required this.unlockedAt,
+  });
+
+  final TrophyDefinition def;
+  final bool isUnlocked;
+  final int progress;
+  final DateTime? unlockedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accentColor = _metricColor(def.metric, def.target);
+    final rate =
+        def.target > 0 ? (progress / def.target).clamp(0.0, 1.0) : 0.0;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isUnlocked
+            ? accentColor.withValues(alpha: 0.1)
+            : const Color(0xFF13131E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isUnlocked
+              ? accentColor.withValues(alpha: 0.4)
+              : Colors.white.withValues(alpha: 0.06),
+        ),
+        boxShadow: isUnlocked
+            ? [
+                BoxShadow(
+                  color: accentColor.withValues(alpha: 0.12),
+                  blurRadius: 16,
+                  spreadRadius: 2,
+                ),
+              ]
+            : null,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Icon ────────────────────────────────────────────────────────
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isUnlocked
+                  ? accentColor.withValues(alpha: 0.18)
+                  : Colors.white.withValues(alpha: 0.04),
+            ),
+            child: Icon(
+              isUnlocked
+                  ? Icons.emoji_events_rounded
+                  : Icons.emoji_events_outlined,
+              color: isUnlocked
+                  ? accentColor
+                  : Colors.white.withValues(alpha: 0.2),
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+
+          // ── Content ──────────────────────────────────────────────────────
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        def.title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: isUnlocked
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+                    // Metric chip
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(100),
+                        border: Border.all(
+                            color: accentColor.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        _metricLabel(def.metric),
+                        style: TextStyle(
+                          color: accentColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  def.description,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.white
+                        .withValues(alpha: isUnlocked ? 0.55 : 0.3),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                if (isUnlocked && unlockedAt != null)
+                  Text(
+                    'Unlocked ${DateFormat('MMM d, yyyy').format(unlockedAt!.toLocal())}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: accentColor.withValues(alpha: 0.8),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )
+                else ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: rate,
+                      minHeight: 5,
+                      backgroundColor: Colors.white.withValues(alpha: 0.06),
+                      valueColor: AlwaysStoppedAnimation(
+                          accentColor.withValues(alpha: 0.7)),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '${_fmt(progress)} / ${_fmt(def.target)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white.withValues(alpha: 0.35),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/// Color for a trophy based on its metric type.
+Color _metricColor(TrophyMetric metric, int target) {
+  if (metric == TrophyMetric.totalXp) {
+    // Scale from amber → purple as target grows
+    if (target >= 300000) return const Color(0xFFAB47BC);
+    if (target >= 75000) return const Color(0xFF78D5F5);
+    if (target >= 15000) return const Color(0xFFFFD700);
+    return const Color(0xFFFFB300);
+  }
+  // Badge-count trophies: cyan
+  return const Color(0xFF00F2FF);
+}
+
+String _metricLabel(TrophyMetric metric) => switch (metric) {
+      TrophyMetric.totalXp => 'XP',
+      TrophyMetric.unlockedBadges => 'BADGES',
+    };
+
+String _fmt(int n) {
+  if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+  if (n >= 1000) return '${(n / 1000).toStringAsFixed(n >= 10000 ? 0 : 1)}k';
+  return '$n';
 }
