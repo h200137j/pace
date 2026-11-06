@@ -61,9 +61,12 @@ jobs:
           set -euo pipefail
           AAB=build/app/outputs/bundle/release/app-release.aab
           keytool -printcert -jarfile "$AAB" | grep -m1 'SHA256:'
-          ABIS=$(unzip -l "$AAB" | awk '{print $4}' | grep -E '^base/lib/' | cut -d/ -f3 | sort -u)
-          echo "ABIs: $ABIS"
-          test "$ABIS" = "arm64-v8a"
+          # Plugins can ship prebuilt libraries for other ABIs. libapp.so is the
+          # compiled Dart code, so it shows which ABIs were really built.
+          unzip -l "$AAB" | awk '{print $4}' | grep -E '^base/lib/'
+          APP_ABIS=$(unzip -l "$AAB" | awk '{print $4}' | grep -E '/libapp\.so$' | cut -d/ -f3 | sort -u)
+          echo "App ABIs: $APP_ABIS"
+          test "$APP_ABIS" = "arm64-v8a"
 
       - name: Upload bundle
         uses: actions/upload-artifact@v4
