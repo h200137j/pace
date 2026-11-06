@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -17,6 +16,22 @@ import '../models/xp_event.dart';
 import '../repositories/activity_repository.dart';
 import '../repositories/completion_repository.dart';
 import '../repositories/gamification_repository.dart';
+import 'backup_archive.dart';
+
+/// Outcome of writing a backup zip.
+class BackupResult {
+  const BackupResult({
+    required this.path,
+    required this.photoCount,
+    required this.missingPhotoCount,
+  });
+
+  final String path;
+  final int photoCount;
+
+  /// Completions whose photo file was no longer on disk.
+  final int missingPhotoCount;
+}
 
 class ExportService {
   ExportService({
@@ -49,7 +64,7 @@ class ExportService {
     }
 
     return {
-      'version': 2,
+      'version': 3,
       'exportedAt': DateTime.now().toIso8601String(),
       'activities': activities
           .map((activity) => _activityToMap(
@@ -65,51 +80,126 @@ class ExportService {
     };
   }
 
-  static String _exportFileName() {
+  static String _exportFileName(String extension) {
     final now = DateTime.now();
     final stamp = '${now.year}-'
         '${now.month.toString().padLeft(2, '0')}-'
         '${now.day.toString().padLeft(2, '0')}_'
         '${now.hour.toString().padLeft(2, '0')}-'
         '${now.minute.toString().padLeft(2, '0')}';
-    return 'pace_$stamp.json';
+    return 'pace_$stamp.$extension';
   }
 
-  /// Share backup via system share sheet.
-  Future<void> exportJson() async {
-    final payload = await buildExportPayload();
-    final json = const JsonEncoder.withIndent('  ').convert(payload);
-    final file = await _writeTemp(_exportFileName(), json);
-    await Share.shareXFiles([XFile(file.path)], text: 'Pace backup');
+  /// Share backup zip via system share sheet.
+  Future<BackupResult> shareBackup() async {
+    final dir = await getTemporaryDirectory();
+    await _deleteOldBackups(dir);
+    final result = await createBackupZip(dir.path);
+    await Share.shareXFiles([XFile(result.path)], text: 'Pace backup');
+    return result;
   }
 
-  /// Save backup directly to a user-chosen location (no share sheet).
-  Future<bool> exportJsonToFile() async {
-    final payload = await buildExportPayload();
-    final jsonStr = const JsonEncoder.withIndent('  ').convert(payload);
-    final bytes = Uint8List.fromList(utf8.encode(jsonStr));
+  /// Save backup zip to app-specific external storage.
+  ///
+  /// Android removes this folder when the app is uninstalled, so the zip must
+  /// be moved off the device first.
+  Future<BackupResult> saveBackupToDevice() async {
+    final external = await getExternalStorageDirectory();
+    if (external == null) {
+      throw const FileSystemException('External storage is unavailable');
+    }
+    final dir = Directory(path.join(external.path, 'backups'));
+    await dir.create(recursive: true);
+    return createBackupZip(dir.path);
+  }
 
-    final result = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save Pace Backup',
-      fileName: _exportFileName(),
-      bytes: bytes,
+  /// Writes the JSON payload and photo files to a zip in [outputDirPath].
+  Future<BackupResult> createBackupZip(String outputDirPath) async {
+    final payload = await buildExportPayload();
+    final photos = <String, String>{};
+    var missingPhotoCount = 0;
+    final completions = (payload['completions'] as List)
+        .cast<Map<String, dynamic>>();
+    for (final completion in completions) {
+      final photoPath = completion['photoPath'] as String?;
+      final entry = completion['photoEntry'] as String?;
+      if (entry != null) {
+        photos[entry] = photoPath!;
+      } else if (photoPath != null) {
+        missingPhotoCount++;
+      }
+    }
+
+    final zipPath = path.join(outputDirPath, _exportFileName('zip'));
+    final jsonFile = File('$zipPath.json');
+    try {
+      await jsonFile.writeAsString(jsonEncode(payload));
+      await writeBackupZip(
+        zipPath: zipPath,
+        jsonPath: jsonFile.path,
+        photos: photos,
+      );
+    } finally {
+      if (await jsonFile.exists()) await jsonFile.delete();
+    }
+
+    return BackupResult(
+      path: zipPath,
+      photoCount: photos.length,
+      missingPhotoCount: missingPhotoCount,
     );
-    return result != null;
   }
 
-  Future<void> importJson() async {
+  /// Restores from a user-picked backup zip or legacy JSON file.
+  Future<bool> importBackup() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['json'],
+      allowedExtensions: ['zip', 'json'],
     );
-    if (result == null || result.files.single.path == null) return;
+    final picked = result?.files.single.path;
+    if (picked == null) return false;
 
-    final raw = await File(result.files.single.path!).readAsString();
-    final payload = jsonDecode(raw) as Map<String, dynamic>;
-    await importFromPayload(payload);
+    if (path.extension(picked).toLowerCase() == '.zip') {
+      await importZip(picked);
+    } else {
+      final raw = await File(picked).readAsString();
+      await importFromPayload(jsonDecode(raw) as Map<String, dynamic>);
+    }
+    return true;
   }
 
-  Future<void> importFromPayload(Map<String, dynamic> payload) async {
+  /// Restores from a backup zip. Photos are extracted and checked before any
+  /// database record is written. [photosDirPath] defaults to app storage.
+  Future<void> importZip(String zipPath, {String? photosDirPath}) async {
+    final payload =
+        jsonDecode(await readBackupJson(zipPath)) as Map<String, dynamic>;
+    final photosDir = photosDirPath ?? (await _photosDirectory()).path;
+
+    final destinations = <String, String>{};
+    final completions = (payload['completions'] as List?)
+            ?.cast<Map<String, dynamic>>() ??
+        const <Map<String, dynamic>>[];
+    for (final completion in completions) {
+      final entry = completion['photoEntry'] as String?;
+      if (entry == null) continue;
+      destinations[entry] = path.join(
+        photosDir,
+        _photoFileName(
+          completion['activityId'] as int,
+          completion['dateKey'] as String,
+          completion['photoFileName'] as String?,
+        ),
+      );
+    }
+
+    await extractBackupPhotos(zipPath: zipPath, destinations: destinations);
+    await importFromPayload(payload, extractedPhotos: destinations);
+  }
+
+  Future<void> importFromPayload(
+    Map<String, dynamic> payload, {
+    Map<String, String> extractedPhotos = const {},
+  }) async {
     final version = (payload['version'] as num?)?.toInt() ?? 1;
     final activityMaps = (payload['activities'] as List)
       .cast<Map<String, dynamic>>();
@@ -127,7 +217,7 @@ class ExportService {
         (payload['completions'] as List?)?.cast<dynamic>() ?? const [];
     for (final e in completionEntries) {
       final map = e as Map<String, dynamic>;
-      comps.add(await _completionFromImportMap(map));
+      comps.add(await _completionFromImportMap(map, extractedPhotos));
     }
 
     if (comps.isEmpty) {
@@ -186,11 +276,34 @@ class ExportService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  Future<File> _writeTemp(String name, String content) async {
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$name');
-    await file.writeAsString(content);
-    return file;
+  /// Clears earlier shared backups so they do not pile up in the cache.
+  Future<void> _deleteOldBackups(Directory dir) async {
+    await for (final item in dir.list()) {
+      final name = path.basename(item.path);
+      if (item is File && name.startsWith('pace_') && name.endsWith('.zip')) {
+        await item.delete();
+      }
+    }
+  }
+
+  Future<Directory> _photosDirectory() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final photosDir = Directory(path.join(directory.path, 'activity_photos'));
+    if (!await photosDir.exists()) {
+      await photosDir.create(recursive: true);
+    }
+    return photosDir;
+  }
+
+  static String _photoFileName(
+    int activityId,
+    String dateKey,
+    String? sourceName,
+  ) {
+    final extension = sourceName != null && path.extension(sourceName).isNotEmpty
+        ? path.extension(sourceName)
+        : '.jpg';
+    return path.basename('${activityId}_$dateKey$extension');
   }
 
   Map<String, dynamic> _activityToMap(
@@ -204,6 +317,8 @@ class ExportService {
         'colorValue': a.colorValue,
         'iconCodePoint': a.iconCodePoint,
         'targetDaysMask': a.targetDaysMask,
+        'requiresPhoto': a.requiresPhoto,
+        'dailyCheckInTarget': a.dailyCheckInTarget,
         'startDate': a.startDate?.toIso8601String(),
         'endDate': a.endDate?.toIso8601String(),
         'endDateUserSelected': a.endDateUserSelected,
@@ -223,6 +338,8 @@ class ExportService {
     ..colorValue = m['colorValue'] as int
     ..iconCodePoint = m['iconCodePoint'] as int
     ..targetDaysMask = m['targetDaysMask'] as int
+    ..requiresPhoto = m['requiresPhoto'] as bool? ?? false
+    ..dailyCheckInTarget = (m['dailyCheckInTarget'] as num?)?.toInt() ?? 1
     ..startDate = m['startDate'] == null
       ? null
       : DateTime.parse(m['startDate'] as String)
@@ -240,23 +357,43 @@ class ExportService {
         'id': c.id,
         'activityId': c.activityId,
         'dateKey': c.dateKey,
+        'checkInCount': c.checkInCount,
         'completedAt': c.completedAt.toIso8601String(),
         'photoPath': c.photoPath,
         'photoFileName': c.photoPath != null ? path.basename(c.photoPath!) : null,
-        'photoData': _encodePhoto(c.photoPath),
+        'photoEntry': _photoEntryName(c),
         'note': c.note,
       };
+
+  /// Zip entry for a completion's photo, or null if there is no file on disk.
+  /// The id prefix keeps entry names unique.
+  String? _photoEntryName(Completion c) {
+    final photoPath = c.photoPath;
+    if (photoPath == null || !File(photoPath).existsSync()) return null;
+    return 'photos/${c.id}_${path.basename(photoPath)}';
+  }
 
   Completion _completionFromMap(Map<String, dynamic> m) => Completion()
     ..id = m['id'] as int
     ..activityId = m['activityId'] as int
     ..dateKey = m['dateKey'] as String
+    ..checkInCount = (m['checkInCount'] as num?)?.toInt() ?? 1
     ..completedAt = DateTime.parse(m['completedAt'] as String)
     ..photoPath = m['photoPath'] as String?
     ..note = m['note'] as String?;
 
-  Future<Completion> _completionFromImportMap(Map<String, dynamic> m) async {
+  Future<Completion> _completionFromImportMap(
+    Map<String, dynamic> m,
+    Map<String, String> extractedPhotos,
+  ) async {
     final completion = _completionFromMap(m);
+    final extractedPath = extractedPhotos[m['photoEntry']];
+    if (extractedPath != null) {
+      completion.photoPath = extractedPath;
+      return completion;
+    }
+
+    // Backups before version 3 embed photos as base64.
     final photoData = m['photoData'] as String?;
     final photoFileName = m['photoFileName'] as String?;
     if (photoData != null) {
@@ -360,30 +497,15 @@ class ExportService {
         : DateTime.parse(m['awardedAt'] as String)
     ..note = m['note'] as String?;
 
-  String? _encodePhoto(String? photoPath) {
-    if (photoPath == null) return null;
-    final file = File(photoPath);
-    if (!file.existsSync()) return null;
-    return base64Encode(file.readAsBytesSync());
-  }
-
   Future<String> _restorePhoto(
     String photoData,
     int activityId,
     String dateKey, {
     String? photoFileName,
   }) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final photosDir = Directory(path.join(directory.path, 'activity_photos'));
-    if (!await photosDir.exists()) {
-      await photosDir.create(recursive: true);
-    }
-
+    final photosDir = await _photosDirectory();
     final bytes = base64Decode(photoData);
-    final extension = photoFileName != null && path.extension(photoFileName).isNotEmpty
-        ? path.extension(photoFileName)
-        : '.jpg';
-    final fileName = '${activityId}_$dateKey$extension';
+    final fileName = _photoFileName(activityId, dateKey, photoFileName);
     final file = File(path.join(photosDir.path, fileName));
     await file.writeAsBytes(bytes, flush: true);
     return file.path;

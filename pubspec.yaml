@@ -1,7 +1,7 @@
 name: pace
 description: A modern habit and activity tracking app.
 publish_to: 'none'
-version: 1.0.9+5
+version: 1.0.10+8
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -36,6 +36,7 @@ dependencies:
   timezone: ^0.9.4
 
   # File I/O / sharing
+  archive: ^4.0.9
   share_plus: ^8.0.2
   file_picker: ^8.0.3
   intl: ^0.19.0

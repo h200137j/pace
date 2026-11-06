@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pace/data/models/activity.dart';
 import 'package:pace/data/models/badge_unlock.dart';
@@ -8,7 +10,9 @@ import 'package:pace/data/models/xp_event.dart';
 import 'package:pace/data/repositories/activity_repository.dart';
 import 'package:pace/data/repositories/completion_repository.dart';
 import 'package:pace/data/repositories/gamification_repository.dart';
+import 'package:pace/data/services/backup_archive.dart';
 import 'package:pace/data/services/export_service.dart';
+import 'package:path/path.dart' as path;
 
 class _FakeActivityRepository extends ActivityRepository {
   _FakeActivityRepository([List<Activity>? initial]) {
@@ -247,6 +251,91 @@ void main() {
       expect(importedProfile, isNotNull);
       expect(importedProfile!.totalXp, 120);
       expect(importedEvents.length, 1);
+    });
+
+    test('zip roundtrip restores photos and all record fields', () async {
+      final temp = await Directory.systemTemp.createTemp('pace_backup_test');
+      addTearDown(() => temp.delete(recursive: true));
+      final photo = File(path.join(temp.path, '1_2026-04-10.jpg'));
+      await photo.writeAsBytes(List.generate(4096, (i) => i % 256));
+      final photosDir = await Directory(path.join(temp.path, 'restored')).create();
+
+      final activity = Activity()
+        ..id = 1
+        ..name = 'Run'
+        ..type = ActivityType.values.first
+        ..colorValue = 1
+        ..iconCodePoint = 2
+        ..targetDaysMask = 127
+        ..requiresPhoto = true
+        ..dailyCheckInTarget = 3
+        ..createdAt = DateTime.parse('2026-04-01T00:00:00.000');
+      final withPhoto = Completion()
+        ..id = 7
+        ..activityId = 1
+        ..dateKey = '2026-04-10'
+        ..checkInCount = 2
+        ..completedAt = DateTime.parse('2026-04-10T08:00:00.000')
+        ..photoPath = photo.path;
+      final missingPhoto = Completion()
+        ..id = 8
+        ..activityId = 1
+        ..dateKey = '2026-04-11'
+        ..completedAt = DateTime.parse('2026-04-11T08:00:00.000')
+        ..photoPath = path.join(temp.path, 'gone.jpg');
+
+      final source = ExportService(
+        activityRepo: _FakeActivityRepository([activity]),
+        completionRepo: _FakeCompletionRepository([withPhoto, missingPhoto]),
+        gamificationRepo: _FakeGamificationRepository(),
+      );
+      final result = await source.createBackupZip(temp.path);
+
+      expect(result.photoCount, 1);
+      expect(result.missingPhotoCount, 1);
+      expect(File(result.path).existsSync(), isTrue);
+      expect(File('${result.path}.part').existsSync(), isFalse);
+      expect(File('${result.path}.json').existsSync(), isFalse);
+
+      final activityRepo = _FakeActivityRepository();
+      final completionRepo = _FakeCompletionRepository();
+      final target = ExportService(
+        activityRepo: activityRepo,
+        completionRepo: completionRepo,
+        gamificationRepo: _FakeGamificationRepository(),
+      );
+      await target.importZip(result.path, photosDirPath: photosDir.path);
+
+      final restoredActivity = await activityRepo.findById(1);
+      expect(restoredActivity!.requiresPhoto, isTrue);
+      expect(restoredActivity.dailyCheckInTarget, 3);
+
+      final restored = await completionRepo.getAll();
+      final restoredPhoto =
+          restored.firstWhere((c) => c.dateKey == '2026-04-10');
+      expect(restoredPhoto.checkInCount, 2);
+      expect(path.dirname(restoredPhoto.photoPath!), photosDir.path);
+      expect(
+        await File(restoredPhoto.photoPath!).readAsBytes(),
+        await photo.readAsBytes(),
+      );
+    });
+
+    test('import rejects a backup with a missing photo entry', () async {
+      final temp = await Directory.systemTemp.createTemp('pace_backup_test');
+      addTearDown(() => temp.delete(recursive: true));
+      final jsonFile = File(path.join(temp.path, 'payload.json'));
+      await jsonFile.writeAsString('{}');
+      final zipPath = path.join(temp.path, 'backup.zip');
+      await writeBackupZip(zipPath: zipPath, jsonPath: jsonFile.path, photos: {});
+
+      await expectLater(
+        extractBackupPhotos(
+          zipPath: zipPath,
+          destinations: {'photos/nope.jpg': path.join(temp.path, 'nope.jpg')},
+        ),
+        throwsA(isA<FormatException>()),
+      );
     });
 
     test('seeded v1 payload rebuilds gamification and stays idempotent', () async {

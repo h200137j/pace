@@ -1,0 +1,74 @@
+name: Phone Build (arm64)
+
+# Signed arm64-only bundle for Play internal testing. Not for production:
+# it leaves out every other CPU architecture.
+on:
+  push:
+    branches:
+      - 'fix/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Signed arm64 AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.47.9'
+          cache: true
+
+      - name: Create signing config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          {
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyPassword=$KEY_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "storeFile=upload-keystore.jks"
+          } > android/key.properties
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Test backup export
+        run: flutter test test/data/services/export_service_test.dart
+
+      - name: Build AAB
+        run: flutter build appbundle --release --target-platform android-arm64 --no-tree-shake-icons
+
+      - name: Check bundle
+        run: |
+          set -euo pipefail
+          AAB=build/app/outputs/bundle/release/app-release.aab
+          keytool -printcert -jarfile "$AAB" | grep -m1 'SHA256:'
+          ABIS=$(unzip -l "$AAB" | awk '{print $4}' | grep -E '^base/lib/' | cut -d/ -f3 | sort -u)
+          echo "ABIs: $ABIS"
+          test "$ABIS" = "arm64-v8a"
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: pace-arm64-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 14
+          if-no-files-found: error

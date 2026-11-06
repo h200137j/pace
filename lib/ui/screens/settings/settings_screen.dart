@@ -18,6 +18,13 @@ final appInfoProvider = FutureProvider<PackageInfo>((ref) async {
   return PackageInfo.fromPlatform();
 });
 
+String _backupSummary(BackupResult result) {
+  final missing = result.missingPhotoCount > 0
+      ? ', ${result.missingPhotoCount} missing'
+      : '';
+  return '(${result.photoCount} photos$missing)';
+}
+
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -117,15 +124,16 @@ class SettingsScreen extends ConsumerWidget {
               _SettingsTile(
                 icon: Icons.save_alt_rounded,
                 title: 'Save Backup to Device',
-                subtitle: 'Save JSON file to a location you choose',
+                subtitle: 'Save data and photos as a zip in app storage',
                 onTap: () async {
                   final export = makeExport(ref);
+                  showAppSnackBar(context, 'Creating backup…');
                   try {
-                    final saved = await export.exportJsonToFile();
+                    final result = await export.saveBackupToDevice();
                     if (context.mounted) {
                       showAppSnackBar(
                         context,
-                        saved ? 'Backup saved ✓' : 'Save cancelled',
+                        'Backup saved ✓ ${_backupSummary(result)}\n${result.path}',
                       );
                     }
                   } catch (e) {
@@ -138,11 +146,12 @@ class SettingsScreen extends ConsumerWidget {
               _SettingsTile(
                 icon: Icons.share_rounded,
                 title: 'Share Backup',
-                subtitle: 'Share JSON via apps or cloud storage',
+                subtitle: 'Share zip with data and photos via apps',
                 onTap: () async {
                   final export = makeExport(ref);
+                  showAppSnackBar(context, 'Creating backup…');
                   try {
-                    await export.exportJson();
+                    await export.shareBackup();
                   } catch (e) {
                     if (context.mounted) {
                       showAppSnackBar(context, 'Export failed: $e');
@@ -152,13 +161,13 @@ class SettingsScreen extends ConsumerWidget {
               ),
               _SettingsTile(
                 icon: Icons.download_rounded,
-                title: 'Import JSON Backup',
-                subtitle: 'Restores from a previous backup',
+                title: 'Import Backup',
+                subtitle: 'Restores from a zip or older JSON backup',
                 onTap: () async {
                   final export = makeExport(ref);
                   try {
-                    await export.importJson();
-                    if (context.mounted) {
+                    final imported = await export.importBackup();
+                    if (imported && context.mounted) {
                       showAppSnackBar(context, 'Data imported successfully ✓');
                     }
                   } catch (e) {
